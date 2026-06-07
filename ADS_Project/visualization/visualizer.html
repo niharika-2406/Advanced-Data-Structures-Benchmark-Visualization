@@ -1,0 +1,1330 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>DS Visualizer</title>
+<!-- D3 v7 for layout & data-binding -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<!-- GSAP 3 for smooth animations -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<!-- DS class definitions (single source of truth) -->
+<script src="ds-classes.js"></script>
+<script src="renderer.js"></script>
+<style>
+:root{--bg:#0f172a;--surface:#1e293b;--border:#334155;--text:#e2e8f0;--muted:#94a3b8;
+  --avl:#10b981;--rbt:#ef4444;--bst:#f59e0b;--binom:#38bdf8;--fib:#a78bfa;--cur:#6366f1;--radius:8px}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;
+  height:100vh;display:flex;flex-direction:column;overflow:hidden}
+nav{display:flex;gap:4px;padding:10px 16px;background:var(--surface);
+  border-bottom:1px solid var(--border);flex-shrink:0}
+.tab{padding:7px 16px;border-radius:var(--radius);cursor:pointer;font-size:13px;
+  font-weight:500;color:var(--muted);border:1px solid transparent;transition:all .15s;user-select:none}
+.tab:hover{color:var(--text);background:#ffffff10}
+.tab.active{color:#fff;border-color:var(--cur);
+  background:color-mix(in srgb,var(--cur) 20%,transparent)}
+.workspace{display:flex;flex:1;overflow:hidden}
+.sidebar{width:240px;background:var(--surface);border-right:1px solid var(--border);
+  display:flex;flex-direction:column;padding:12px;gap:10px;overflow-y:auto;flex-shrink:0}
+.sidebar h3{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:2px}
+.op-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.op-btn{padding:7px 4px;border-radius:6px;border:1px solid var(--border);background:transparent;
+  color:var(--text);font-size:11px;cursor:pointer;transition:all .15s;text-align:center}
+.op-btn:hover{background:#ffffff10}
+.op-btn.active{background:color-mix(in srgb,var(--cur) 30%,transparent);border-color:var(--cur);color:#fff}
+.input-row{display:flex;gap:6px}
+.input-row input{flex:1;padding:7px 10px;border-radius:6px;border:1px solid var(--border);
+  background:#0f172a;color:var(--text);font-size:13px;outline:none}
+.input-row input:focus{border-color:var(--cur)}
+.btn{padding:7px 14px;border-radius:6px;border:none;background:var(--cur);color:#fff;
+  font-size:13px;font-weight:600;cursor:pointer;transition:opacity .15s}
+.btn:hover{opacity:.85}
+.btn.sec{background:var(--border);color:var(--text)}
+.btn-row{display:flex;gap:6px}
+.info-box{background:#0f172a;border:1px solid var(--border);border-radius:6px;padding:10px;
+  font-size:12px;color:var(--muted);line-height:1.9}
+.info-box span{color:var(--text);font-weight:600}
+.canvas-area{flex:1;display:flex;flex-direction:column;overflow:hidden}
+#svg-wrap{flex:1;overflow:hidden;background:var(--bg)}
+#main-svg{display:block;transition:opacity .12s ease}
+.stepper{display:flex;align-items:center;gap:8px;padding:8px 14px;background:var(--surface);
+  border-top:1px solid var(--border);flex-shrink:0}
+.stepper button{padding:4px 12px;border-radius:5px;border:1px solid var(--border);
+  background:transparent;color:var(--text);cursor:pointer;font-size:12px}
+.stepper button:hover{background:#ffffff10}
+#step-label{font-size:12px;color:var(--muted);flex:1;text-align:center;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.spd{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);flex-shrink:0}
+.spd input{width:80px;accent-color:var(--cur)}
+.log-panel{width:210px;background:var(--surface);border-left:1px solid var(--border);
+  display:flex;flex-direction:column;flex-shrink:0}
+.log-panel h4{padding:10px 12px;font-size:11px;text-transform:uppercase;letter-spacing:.08em;
+  color:var(--muted);border-bottom:1px solid var(--border)}
+#log-list{flex:1;overflow-y:auto;padding:8px;display:flex;flex-direction:column;gap:4px}
+.log-entry{font-size:11px;padding:5px 8px;border-radius:5px;border-left:3px solid var(--cur);
+  background:#ffffff08;color:var(--text);word-break:break-word}
+.log-entry.err{border-color:#ef4444;color:#fca5a5}
+.log-entry.ok{border-color:#10b981;color:#6ee7b7}
+.log-entry.op-sep{border-left:3px solid #f59e0b;background:rgba(245,158,11,.08);
+  color:#fbbf24;font-weight:700;font-size:10px;letter-spacing:.04em;cursor:default;
+  padding:4px 8px;margin-top:4px}
+#cmp-panel{display:none;flex:1;overflow-y:auto}
+.cmp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(195px,1fr));gap:14px;margin-bottom:24px}
+.cmp-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px}
+.cmp-card h3{font-size:13px;font-weight:700;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--border)}
+.cmp-card table{width:100%;font-size:12px;border-collapse:collapse}
+.cmp-card td{padding:3px 0;color:var(--muted)}
+.cmp-card td:last-child{color:var(--text);text-align:right;font-family:monospace;font-size:11px}
+.bench-table{width:100%;border-collapse:collapse;font-size:12px;margin-top:8px}
+.bench-table th,.bench-table td{padding:7px 10px;border:1px solid var(--border);text-align:right}
+.bench-table th{background:var(--surface);color:var(--muted);font-weight:600;text-align:center}
+.bench-table td:first-child{text-align:left;font-weight:600;color:var(--text)}
+#toast{position:fixed;bottom:20px;right:20px;background:#1e293b;border:1px solid var(--border);
+  border-radius:8px;padding:10px 16px;font-size:13px;color:var(--text);opacity:0;
+  transition:opacity .3s;pointer-events:none;z-index:999}
+#toast.show{opacity:1}
+.log-entry.active-step{background:color-mix(in srgb,var(--cur) 25%,transparent);border-color:var(--cur);color:#fff;font-weight:600}
+/* ── Dataset Benchmark Tab ─────────────────────────────────────── */
+#bench-panel{display:none;flex:1;overflow-y:auto;padding:24px 28px;flex-direction:column;gap:22px}
+.bench-meta{font-size:12px;color:var(--muted);display:flex;gap:20px;flex-wrap:wrap;
+  padding:10px 14px;background:var(--surface);border:1px solid var(--border);border-radius:8px}
+.bench-meta span{color:var(--text);font-weight:600}
+.bench-load-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.bench-load-btn{display:flex;align-items:center;gap:6px;padding:8px 16px;border-radius:8px;
+  border:1px dashed var(--border);background:transparent;color:var(--muted);font-size:12px;
+  cursor:pointer;transition:all .15s;user-select:none}
+.bench-load-btn:hover{border-color:var(--cur);color:var(--text)}
+.bench-load-btn.loaded{border-color:#10b981;color:#10b981}
+.bench-hint{font-size:11px;color:var(--muted)}
+.bench-winners{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.bench-winner{background:var(--surface);border:1px solid var(--border);border-radius:8px;
+  padding:14px;text-align:center}
+.bench-winner .wcat{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px}
+.bench-winner .wname{font-size:14px;font-weight:700}
+.bench-winner .wval{font-size:11px;color:var(--muted);margin-top:3px;font-family:monospace}
+.bench-cards{display:grid;grid-template-columns:repeat(5,1fr);gap:12px}
+.bench-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;
+  padding:14px;border-top:3px solid var(--border)}
+.bench-card h4{font-size:11px;color:var(--muted);margin-bottom:8px;font-weight:500}
+.bench-card .bval{font-size:20px;font-weight:700;font-family:monospace}
+.bench-card .bsub{font-size:10px;color:var(--muted);margin-top:2px}
+.bench-card .brows{display:flex;flex-direction:column;gap:4px;margin-top:8px}
+.bench-card .brow{display:flex;justify-content:space-between;font-size:11px}
+.bench-card .brow .bl{color:var(--muted)}.bench-card .brow .bn{font-family:monospace;font-weight:600}
+.bench-charts{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.bench-chart-box{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px}
+.bench-chart-box h3{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px}
+.bench-chart-wrap{position:relative;height:200px}
+.bench-table-box{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px}
+.bench-table-box h3{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px}
+.bench-cmp-table{width:100%;border-collapse:collapse;font-size:12px}
+.bench-cmp-table th{padding:8px 12px;text-align:right;color:var(--muted);font-weight:600;
+  font-size:11px;border-bottom:1px solid var(--border)}
+.bench-cmp-table th:first-child{text-align:left}
+.bench-cmp-table td{padding:8px 12px;text-align:right;border-bottom:1px solid #1e293b;font-family:monospace}
+.bench-cmp-table td:first-child{text-align:left;font-family:inherit;font-weight:600}
+.bench-cmp-table tr:last-child td{border-bottom:none}
+.bench-best{color:#10b981;font-weight:700}.bench-worst{color:#ef4444}
+.bench-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px}
+.bench-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;
+  min-height:300px;gap:12px;color:var(--muted);font-size:13px}
+
+/* ── Resize handles ─────────────────────────────────────────────── */
+.resize-handle{width:8px;background:transparent;cursor:col-resize;flex-shrink:0;
+  position:relative;z-index:10;transition:background .15s}
+.resize-handle:hover,.resize-handle.dragging{background:color-mix(in srgb,var(--cur) 40%,transparent)}
+.resize-handle::after{content:'';position:absolute;top:50%;left:50%;
+  transform:translate(-50%,-50%);width:2px;height:48px;
+  background:var(--border);border-radius:2px;transition:background .15s}
+.resize-handle:hover::after,.resize-handle.dragging::after{background:var(--cur)}
+
+/* ── Zoom controls ──────────────────────────────────────────────── */
+.zoom-bar{display:flex;align-items:center;gap:4px;padding:0 8px;flex-shrink:0}
+.zoom-btn{width:26px;height:26px;border-radius:5px;border:1px solid var(--border);
+  background:transparent;color:var(--text);font-size:14px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;line-height:1;transition:background .15s}
+.zoom-btn:hover{background:#ffffff15}
+#zoom-label{font-size:11px;color:var(--muted);min-width:38px;text-align:center;font-family:monospace}
+#svg-wrap{cursor:grab}
+#svg-wrap.panning{cursor:grabbing}
+</style>
+</head>
+<body>
+<nav>
+  <div class="tab" data-ds="avl">AVL Tree</div>
+  <div class="tab" data-ds="rbt">Red-Black Tree</div>
+  <div class="tab" data-ds="bheap">Binary Heap</div>
+  <div class="tab" data-ds="binom">Binomial Heap</div>
+  <div class="tab" data-ds="btree">B+ Tree (T=3)</div>
+  <div class="tab" data-ds="tbt">Threaded BST</div>
+  <div class="tab" data-ds="trie">Trie</div>
+  <div class="tab" data-ds="skip">Skip List</div>
+  <div class="tab" data-ds="suffix">Suffix Tree</div>
+  <div class="tab" data-ds="rtree">R-Tree</div>
+  <div class="tab" data-ds="cmp" style="margin-left:auto">&#9878; Compare</div>
+  <div class="tab" data-ds="bench">&#128202; Dataset</div>
+</nav>
+<div class="workspace">
+  <div class="sidebar" id="sidebar">
+    <div><h3>Operations</h3><div class="op-grid" id="op-grid"></div></div>
+    <div class="input-row">
+      <input id="val-input" type="text" placeholder="Value... (Enter)"/>
+      <input id="val-input2" type="text" placeholder="Value 2..." style="display:none"/>
+      <button class="btn" id="go-btn">Go</button>
+    </div>
+    <div class="btn-row">
+      <button class="btn sec" id="random-btn" style="flex:1">Random</button>
+      <button class="btn sec" id="clear-btn" style="flex:1">Clear</button>
+    </div>
+    <div class="info-box" id="info-box">Select a structure to begin.</div>
+  </div>
+  <div class="resize-handle" id="resize-left" title="Drag to resize sidebar"></div>
+  <div class="canvas-area" id="canvas-area">
+    <div id="svg-wrap">
+      <svg id="main-svg" xmlns="http://www.w3.org/2000/svg" width="800" height="500"></svg>
+    </div>
+    <div class="stepper">
+      <button id="prev-btn">&#9664; Prev</button>
+      <button id="play-btn">&#9654; Play</button>
+      <button id="next-btn">Next &#9654;</button>
+      <span id="step-label">-</span>
+      <div class="zoom-bar">
+        <button class="zoom-btn" id="zoom-out" title="Zoom out (-)">&#8722;</button>
+        <span id="zoom-label">100%</span>
+        <button class="zoom-btn" id="zoom-in" title="Zoom in (+)">&#43;</button>
+        <button class="zoom-btn" id="zoom-reset" title="Reset zoom" style="font-size:11px;width:auto;padding:0 6px">Reset</button>
+      </div>
+      <div class="spd">Speed
+        <input type="range" id="speed-range" min="100" max="2000" value="700" step="100">
+        <span id="speed-val">700ms</span>
+      </div>
+    </div>
+  </div>
+  <div class="resize-handle" id="resize-right" title="Drag to resize log panel"></div>
+  <div class="log-panel" id="log-panel"><h4>Step Log</h4><div id="log-list"></div></div>
+  <div id="cmp-panel">
+    <!-- ── Per-structure complexity cards ──────────────────────── -->
+    <div style="padding:24px 24px 0">
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:14px">Time &amp; Space Complexity</div>
+      <div class="cmp-grid">
+        <div class="cmp-card" style="border-top:3px solid var(--avl)">
+          <h3 style="color:var(--avl)">AVL Tree</h3><table>
+          <tr><td>Insert</td><td>O(log n)</td></tr>
+          <tr><td>Delete</td><td>O(log n)</td></tr>
+          <tr><td>Search</td><td>O(log n)</td></tr>
+          <tr><td>Find-Min</td><td>O(log n)</td></tr>
+          <tr><td>Extract-Min</td><td>O(log n)</td></tr>
+          <tr><td>Space</td><td>O(n)</td></tr>
+          <tr><td>Height</td><td>≤1.44 log₂ n</td></tr>
+          <tr><td>Rotations/insert</td><td>≤ 2</td></tr>
+          <tr><td>Rotations/delete</td><td>O(log n)</td></tr>
+        </table></div>
+        <div class="cmp-card" style="border-top:3px solid var(--rbt)">
+          <h3 style="color:var(--rbt)">Red-Black Tree</h3><table>
+          <tr><td>Insert</td><td>O(log n)</td></tr>
+          <tr><td>Delete</td><td>O(log n)</td></tr>
+          <tr><td>Search</td><td>O(log n)</td></tr>
+          <tr><td>Find-Min</td><td>O(log n)</td></tr>
+          <tr><td>Extract-Min</td><td>O(log n)</td></tr>
+          <tr><td>Space</td><td>O(n)</td></tr>
+          <tr><td>Height</td><td>≤ 2 log₂(n+1)</td></tr>
+          <tr><td>Rotations/insert</td><td>≤ 2</td></tr>
+          <tr><td>Rotations/delete</td><td>≤ 3</td></tr>
+        </table></div>
+        <div class="cmp-card" style="border-top:3px solid var(--bst)">
+          <h3 style="color:var(--bst)">Binary Heap</h3><table>
+          <tr><td>Insert</td><td>O(log n)</td></tr>
+          <tr><td>Delete</td><td>O(log n)</td></tr>
+          <tr><td>Search</td><td>O(n)</td></tr>
+          <tr><td>Find-Min</td><td>O(1)</td></tr>
+          <tr><td>Extract-Min</td><td>O(log n)</td></tr>
+          <tr><td>Space</td><td>O(n)</td></tr>
+          <tr><td>Structure</td><td>Array (implicit)</td></tr>
+          <tr><td>Build heap</td><td>O(n)</td></tr>
+          <tr><td>Merge</td><td>O(n)</td></tr>
+        </table></div>
+        <div class="cmp-card" style="border-top:3px solid var(--binom)">
+          <h3 style="color:var(--binom)">Binomial Heap</h3><table>
+          <tr><td>Insert</td><td>O(log n)</td></tr>
+          <tr><td>Delete</td><td>O(log n)</td></tr>
+          <tr><td>Search</td><td>O(n)</td></tr>
+          <tr><td>Find-Min</td><td>O(log n)</td></tr>
+          <tr><td>Extract-Min</td><td>O(log n)</td></tr>
+          <tr><td>Space</td><td>O(n)</td></tr>
+          <tr><td>Merge</td><td>O(log n)</td></tr>
+          <tr><td>Structure</td><td>Forest of Bₖ trees</td></tr>
+          <tr><td>Decrease-Key</td><td>O(log n)</td></tr>
+        </table></div>
+        <div class="cmp-card" style="border-top:3px solid var(--fib)">
+          <h3 style="color:var(--fib)">B+ Tree (T=3)</h3><table>
+          <tr><td>Insert</td><td>O(log n)</td></tr>
+          <tr><td>Delete</td><td>O(log n)</td></tr>
+          <tr><td>Search</td><td>O(log n)</td></tr>
+          <tr><td>Find-Min</td><td>O(log n)</td></tr>
+          <tr><td>Extract-Min</td><td>O(log n)</td></tr>
+          <tr><td>Space</td><td>O(n)</td></tr>
+          <tr><td>Node capacity</td><td>2–5 keys</td></tr>
+          <tr><td>Leaves linked</td><td>Yes (→ list)</td></tr>
+          <tr><td>Range query</td><td>O(log n + k)</td></tr>
+        </table></div>
+      </div>
+    </div>
+
+    <!-- ── Side-by-side complexity table ───────────────────────── -->
+    <div style="padding:20px 24px 0">
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:14px">Side-by-Side Complexity</div>
+      <div class="bench-table-box" style="overflow-x:auto">
+        <table class="bench-cmp-table" style="min-width:640px">
+          <thead><tr>
+            <th style="text-align:left">Operation</th>
+            <th style="color:var(--avl)">AVL Tree</th>
+            <th style="color:var(--rbt)">Red-Black</th>
+            <th style="color:var(--bst)">Binary Heap</th>
+            <th style="color:var(--binom)">Binomial Heap</th>
+            <th style="color:var(--fib)">B+ Tree</th>
+          </tr></thead>
+          <tbody>
+            <tr><td style="text-align:left;font-family:inherit;font-weight:600">Insert</td>
+              <td>O(log n)</td><td>O(log n)</td><td>O(log n)</td><td>O(log n)</td><td>O(log n)</td></tr>
+            <tr><td style="text-align:left;font-family:inherit;font-weight:600">Delete</td>
+              <td>O(log n)</td><td>O(log n)</td><td>O(log n)</td><td>O(log n)</td><td>O(log n)</td></tr>
+            <tr><td style="text-align:left;font-family:inherit;font-weight:600">Search</td>
+              <td>O(log n)</td><td>O(log n)</td><td class="bench-worst">O(n)</td><td class="bench-worst">O(n)</td><td>O(log n)</td></tr>
+            <tr><td style="text-align:left;font-family:inherit;font-weight:600">Find-Min</td>
+              <td>O(log n)</td><td>O(log n)</td><td class="bench-best">O(1)</td><td>O(log n)</td><td>O(log n)</td></tr>
+            <tr><td style="text-align:left;font-family:inherit;font-weight:600">Extract-Min</td>
+              <td>O(log n)</td><td>O(log n)</td><td>O(log n)</td><td>O(log n)</td><td>O(log n)</td></tr>
+            <tr><td style="text-align:left;font-family:inherit;font-weight:600">Merge</td>
+              <td class="bench-worst">O(n)</td><td class="bench-worst">O(n)</td><td class="bench-worst">O(n)</td><td class="bench-best">O(log n)</td><td class="bench-worst">O(n)</td></tr>
+            <tr><td style="text-align:left;font-family:inherit;font-weight:600">Range Query</td>
+              <td>O(log n+k)</td><td>O(log n+k)</td><td class="bench-worst">O(n)</td><td class="bench-worst">O(n)</td><td class="bench-best">O(log n+k)</td></tr>
+            <tr><td style="text-align:left;font-family:inherit;font-weight:600">Space</td>
+              <td>O(n)</td><td>O(n)</td><td>O(n)</td><td>O(n)</td><td>O(n)</td></tr>
+            <tr><td style="text-align:left;font-family:inherit;font-weight:600">Max Height</td>
+              <td>1.44 log n</td><td>2 log n</td><td>⌊log₂ n⌋</td><td>⌊log₂ n⌋</td><td>log_T n</td></tr>
+          </tbody>
+        </table>
+        <div style="font-size:10px;color:var(--muted);margin-top:8px">
+          <span style="color:#10b981">■</span> Best &nbsp;
+          <span style="color:#ef4444">■</span> Worst &nbsp;
+          k = number of results returned by range query
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Structural properties ────────────────────────────────── -->
+    <div style="padding:20px 24px 0">
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:14px">Structural Properties &amp; Invariants</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+
+        <div class="bench-table-box">
+          <h3 style="color:var(--avl)">AVL Tree</h3>
+          <ul style="font-size:12px;color:var(--muted);line-height:2;padding-left:16px;margin-top:8px">
+            <li>Binary search tree ordering at every node</li>
+            <li>Balance factor = height(left) − height(right)</li>
+            <li>|balance factor| ≤ 1 at every node (strict)</li>
+            <li>Rebalanced via single or double rotations</li>
+            <li>Strictest balance → shortest height → fastest lookup</li>
+            <li>More rotations on insert/delete than Red-Black</li>
+          </ul>
+        </div>
+
+        <div class="bench-table-box">
+          <h3 style="color:var(--rbt)">Red-Black Tree</h3>
+          <ul style="font-size:12px;color:var(--muted);line-height:2;padding-left:16px;margin-top:8px">
+            <li>Every node is RED or BLACK</li>
+            <li>Root is always BLACK</li>
+            <li>Every NIL leaf is BLACK</li>
+            <li>RED node → both children must be BLACK</li>
+            <li>All root-to-leaf paths have equal black-height</li>
+            <li>At most 2 rotations per insert, 3 per delete</li>
+          </ul>
+        </div>
+
+        <div class="bench-table-box">
+          <h3 style="color:var(--bst)">Binary Heap</h3>
+          <ul style="font-size:12px;color:var(--muted);line-height:2;padding-left:16px;margin-top:8px">
+            <li>Complete binary tree stored as a flat array</li>
+            <li>Min-heap: parent ≤ both children at every node</li>
+            <li>Parent of index i is at ⌊(i−1)/2⌋</li>
+            <li>Children of i are at 2i+1 and 2i+2</li>
+            <li>No ordering between siblings</li>
+            <li>Heapify (build) runs in O(n) — not O(n log n)</li>
+          </ul>
+        </div>
+
+        <div class="bench-table-box">
+          <h3 style="color:var(--binom)">Binomial Heap</h3>
+          <ul style="font-size:12px;color:var(--muted);line-height:2;padding-left:16px;margin-top:8px">
+            <li>Forest of binomial trees Bₖ (one per bit of n)</li>
+            <li>Bₖ has 2ᵏ nodes and height k</li>
+            <li>At most ⌊log₂ n⌋ + 1 trees in the forest</li>
+            <li>Each tree satisfies min-heap ordering</li>
+            <li>Merge is O(log n) — key advantage over Binary Heap</li>
+            <li>Supports Decrease-Key in O(log n)</li>
+          </ul>
+        </div>
+
+        <div class="bench-table-box" style="grid-column:1/-1">
+          <h3 style="color:var(--fib)">B+ Tree (T = 3)</h3>
+          <ul style="font-size:12px;color:var(--muted);line-height:2;padding-left:16px;margin-top:8px;
+            display:grid;grid-template-columns:1fr 1fr;gap:0 24px">
+            <li>All data stored only in leaf nodes</li>
+            <li>Internal nodes hold separator keys only</li>
+            <li>Every non-root node has ≥ T−1 = 2 keys</li>
+            <li>Every node has ≤ 2T−1 = 5 keys</li>
+            <li>All leaves at the same depth (perfectly balanced)</li>
+            <li>Leaves linked in a doubly-linked list for range scans</li>
+            <li>Leaf split: copy-up (key stays in right leaf)</li>
+            <li>Internal split: push-up (middle key removed from child)</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── When to use ───────────────────────────────────────────── -->
+    <div style="padding:20px 24px 28px">
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:14px">When to Use Each Structure</div>
+      <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px">
+
+        <div class="bench-card" style="border-top-color:var(--avl)">
+          <h4><span class="bench-dot" style="background:var(--avl)"></span>AVL Tree</h4>
+          <div style="font-size:11px;color:var(--muted);line-height:1.8;margin-top:6px">
+            ✔ Read-heavy workloads<br>
+            ✔ Fastest lookup needed<br>
+            ✔ Ordered traversal<br>
+            ✔ Predecessor / successor<br>
+            ✘ Frequent inserts/deletes<br>
+            ✘ Heap-merge operations
+          </div>
+        </div>
+
+        <div class="bench-card" style="border-top-color:var(--rbt)">
+          <h4><span class="bench-dot" style="background:var(--rbt)"></span>Red-Black Tree</h4>
+          <div style="font-size:11px;color:var(--muted);line-height:1.8;margin-top:6px">
+            ✔ Balanced read/write mix<br>
+            ✔ General-purpose BST<br>
+            ✔ Used in std::map / TreeMap<br>
+            ✔ Fewer rotations than AVL<br>
+            ✘ Slightly taller than AVL<br>
+            ✘ Heap-merge operations
+          </div>
+        </div>
+
+        <div class="bench-card" style="border-top-color:var(--bst)">
+          <h4><span class="bench-dot" style="background:var(--bst)"></span>Binary Heap</h4>
+          <div style="font-size:11px;color:var(--muted);line-height:1.8;margin-top:6px">
+            ✔ Simple priority queue<br>
+            ✔ O(1) find-min<br>
+            ✔ Heapsort (in-place)<br>
+            ✔ Cache-friendly array<br>
+            ✘ No efficient merge<br>
+            ✘ No ordered search
+          </div>
+        </div>
+
+        <div class="bench-card" style="border-top-color:var(--binom)">
+          <h4><span class="bench-dot" style="background:var(--binom)"></span>Binomial Heap</h4>
+          <div style="font-size:11px;color:var(--muted);line-height:1.8;margin-top:6px">
+            ✔ Mergeable priority queue<br>
+            ✔ O(log n) merge<br>
+            ✔ Decrease-Key support<br>
+            ✔ Dijkstra / Prim's MST<br>
+            ✘ Slower find-min than BHeap<br>
+            ✘ Pointer overhead
+          </div>
+        </div>
+
+        <div class="bench-card" style="border-top-color:var(--fib)">
+          <h4><span class="bench-dot" style="background:var(--fib)"></span>B+ Tree</h4>
+          <div style="font-size:11px;color:var(--muted);line-height:1.8;margin-top:6px">
+            ✔ Database / disk storage<br>
+            ✔ Range queries (O(log n+k))<br>
+            ✔ Sequential scans via leaf list<br>
+            ✔ High fan-out reduces I/O<br>
+            ✘ Complex split/merge logic<br>
+            ✘ No O(1) find-min
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Dataset Benchmark Panel ─────────────────────────────── -->
+  <div id="bench-panel">
+    <!-- load row -->
+    <div class="bench-load-row">
+      <label class="bench-load-btn" id="bench-load-label">
+        &#128202; Load comparison.csv
+        <input type="file" id="bench-csv-input" accept=".csv" style="display:none"/>
+      </label>
+      <span class="bench-hint">Run <code>./run_dataset.exe dataset.txt comparison.csv</code> first, then load the CSV here</span>
+    </div>
+    <!-- meta bar -->
+    <div class="bench-meta" id="bench-meta" style="display:none">
+      <div>Ops: <span id="bm-ops">—</span></div>
+      <div>Inserts: <span id="bm-ins">—</span></div>
+      <div>Searches: <span id="bm-srch">—</span></div>
+      <div>Deletes: <span id="bm-del">—</span></div>
+      <div>File: <span id="bm-file">—</span></div>
+    </div>
+    <!-- empty state -->
+    <div class="bench-empty" id="bench-empty">
+      <div style="font-size:40px;opacity:.3">📊</div>
+      <div>No benchmark data loaded</div>
+      <div style="font-size:11px;opacity:.6">Load comparison.csv to see live charts &amp; comparison table</div>
+    </div>
+    <!-- data sections (hidden until loaded) -->
+    <div id="bench-data" style="display:none;display:flex;flex-direction:column;gap:20px">
+      <div class="bench-winners" id="bench-winners"></div>
+      <div class="bench-cards"   id="bench-cards"></div>
+      <div class="bench-charts">
+        <div class="bench-chart-box"><h3>Insert — ns/op</h3><div class="bench-chart-wrap"><canvas id="bc-insert"></canvas></div></div>
+        <div class="bench-chart-box"><h3>Search — ns/op</h3><div class="bench-chart-wrap"><canvas id="bc-search"></canvas></div></div>
+        <div class="bench-chart-box"><h3>Delete — ns/op</h3><div class="bench-chart-wrap"><canvas id="bc-delete"></canvas></div></div>
+        <div class="bench-chart-box"><h3>Total time — ms</h3><div class="bench-chart-wrap"><canvas id="bc-total"></canvas></div></div>
+      </div>
+      <div class="bench-table-box">
+        <h3>Full Comparison Table</h3>
+        <table class="bench-cmp-table">
+          <thead><tr>
+            <th>Data Structure</th>
+            <th>Insert ops</th><th>Insert ns/op</th>
+            <th>Search ops</th><th>Search ns/op</th>
+            <th>Delete ops</th><th>Delete ns/op</th>
+            <th>Total (ms)</th>
+          </tr></thead>
+          <tbody id="bench-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div>
+<div id="toast"></div>
+<script>
+// DS classes loaded from ds-classes.js
+// Renderer is in renderer.js (D3 + GSAP)
+
+// ═══════════════════════════════════════════════════
+// UI CONTROLLER
+// ═══════════════════════════════════════════════════
+const COLORS = { avl:'#10b981', rbt:'#ef4444', bheap:'#0ea5e9', binom:'#38bdf8', btree:'#a78bfa', tbt:'#0891b2', trie:'#8b5cf6', skip:'#f97316', suffix:'#ec4899', rtree:'#14b8a6' };
+const CFG = {
+  avl:    { label:'AVL Tree',       ops:['Insert','Delete','Search','Find Min','Find Max','Inorder'] },
+  rbt:    { label:'Red-Black Tree', ops:['Insert','Delete','Search','Find Min','Find Max','Inorder'] },
+  bheap:  { label:'Binary Heap',    ops:['Insert','Extract Min','Find Min','Find Max','Delete','Search'] },
+  binom:  { label:'Binomial Heap',  ops:['Insert','Extract Min','Find Min','Delete','Search','Decrease Key','Merge'] },
+  btree:  { label:'B+ Tree (T=3)',  ops:['Insert','Delete','Search','Find Min','Find Max','Inorder','Range Query','Sequential'] },
+  tbt:    { label:'Threaded BST',   ops:['Insert','Delete','Search','Find Min','Find Max','Inorder'] },
+  trie:   { label:'Trie',           ops:['Insert','Delete','Search'] },
+  skip:   { label:'Skip List',      ops:['Insert','Delete','Search','Find Min','Find Max','Inorder'] },
+  suffix: { label:'Suffix Tree',    ops:['Insert','Search'] },
+  rtree:  { label:'R-Tree',         ops:['Insert','Search'] },
+};
+const DS = { avl: new AVLTree(), rbt: new RBTree(), bheap: new BinaryHeap(), binom: new BinomHeap(), btree: new BTree(), tbt: new ThreadedBST(), trie: new Trie(), skip: new SkipList(), suffix: new SuffixTree(), rtree: new RTree() };
+
+let curDS = 'avl', curOp = 'Insert';
+let steps = [], stepIdx = 0, playing = false, playTimer = null;
+let opBoundaries = []; // [{label, startIdx}] — one per operation
+
+// DOM refs — assigned inside DOMContentLoaded
+let svg, opGrid, valInput, valInput2, goBtn, infoBox, logList, stepLabel, speedRange, speedVal, toastEl;
+
+function showToast(m) { toastEl.textContent=m; toastEl.classList.add('show'); setTimeout(()=>toastEl.classList.remove('show'),2000); }
+function clearLog() { logList.innerHTML=''; }
+function pushLog(msg, cls) {
+  let d = document.createElement('div');
+  d.className = 'log-entry' + (cls ? ' ' + cls : '');
+  d.textContent = msg;
+  logList.appendChild(d);
+  logList.scrollTop = logList.scrollHeight;
+}
+
+// Rebuild the log panel to show all steps with operation boundary separators
+function rebuildLog() {
+  logList.innerHTML = '';
+  let boundaryIdx = 0;
+  steps.forEach((s, i) => {
+    // Insert separator before the first step of each operation
+    while (boundaryIdx < opBoundaries.length && opBoundaries[boundaryIdx].startIdx === i) {
+      const sep = document.createElement('div');
+      sep.className = 'log-entry op-sep';
+      sep.textContent = '── ' + opBoundaries[boundaryIdx].label + ' ──';
+      sep.onclick = () => applyStep(i);
+      logList.appendChild(sep);
+      boundaryIdx++;
+    }
+    const d = document.createElement('div');
+    d.className = 'log-entry' + (i === stepIdx ? ' active-step' : '');
+    d.textContent = `${i+1}. ${s.msg}`;
+    d.onclick = () => applyStep(i);
+    logList.appendChild(d);
+  });
+  const active = logList.querySelector('.active-step');
+  if (active) active.scrollIntoView({ block: 'nearest' });
+}
+
+function applyStep(i) {
+  if (!steps.length) return;
+  stepIdx = Math.max(0, Math.min(i, steps.length - 1));
+  let s = steps[stepIdx];
+  renderStep(svg, curDS, s);
+  stepLabel.textContent = `Step ${stepIdx+1}/${steps.length}: ${s.msg}`;
+  rebuildLog();
+}
+
+function stepPrev() { if (stepIdx > 0) applyStep(stepIdx - 1); }
+function stepNext() { if (stepIdx < steps.length - 1) applyStep(stepIdx + 1); }
+
+function togglePlay() {
+  playing = !playing;
+  document.getElementById('play-btn').textContent = playing ? '⏸ Pause' : '▶ Play';
+  if (playing) playLoop(); else clearTimeout(playTimer);
+}
+function playLoop() {
+  if (!playing) return;
+  if (stepIdx >= steps.length - 1) { playing=false; document.getElementById('play-btn').textContent='▶ Play'; return; }
+  stepNext();
+  playTimer = setTimeout(playLoop, +speedRange.value);
+}
+
+function setCur(id) { document.documentElement.style.setProperty('--cur', COLORS[id] || '#6366f1'); }
+
+function switchDS(id) {
+  if (DS[curDS]) DS[curDS].clear();
+  curDS = id; curOp = 'Insert'; steps = []; opBoundaries = []; stepIdx = 0;
+  if (svg) resetRenderer();
+  clearLog();
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.ds === id));
+  const isCmp   = id === 'cmp';
+  const isBench = id === 'bench';
+  const isViz   = !isCmp && !isBench;
+  document.getElementById('cmp-panel').style.display    = isCmp   ? 'block' : 'none';
+  document.getElementById('bench-panel').style.display  = isBench ? 'flex'  : 'none';
+  document.getElementById('sidebar').style.display      = isViz   ? 'flex'  : 'none';
+  document.getElementById('canvas-area').style.display  = isViz   ? 'flex'  : 'none';
+  document.getElementById('log-panel').style.display    = isViz   ? 'flex'  : 'none';
+  if (isBench) { benchRedrawCharts(); return; }
+  if (isCmp) return;
+  setCur(id);
+  buildOps();
+  let snap = makeCurrentSnap();
+  if (snap) { steps = [snap]; applyStep(0); } else { resetRenderer(); stepLabel.textContent = '-'; }
+  updateInfoBar();
+}
+
+function makeCurrentSnap() {
+  const ds = DS[curDS];
+  switch (curDS) {
+    case 'avl':    return ds.root ? { msg:'Current state', tree: cloneBST(ds.root), hl:null, hlType:null } : null;
+    case 'rbt':    return ds.root!==ds.NIL ? { msg:'Current state', tree: cloneRBT(ds.root,ds.NIL), hl:null, hlType:null } : null;
+    case 'bheap':  return ds.size ? { msg:'Current state', heap: ds.data.slice(0,ds.size), hl:null, hlType:null } : null;
+    case 'binom':  return ds.roots.length ? { msg:'Current state', heap: ds.roots.map(r=>cloneBH(r)), hl:null } : null;
+    case 'btree':  return ds.root && ds.root.n > 0 ? { msg:'Current state', tree: ds._clone(ds.root), hl:null, hlType:null } : null;
+    case 'tbt':    return ds.root ? { msg:'Current state', tree: ds._cloneTBT(ds.root), hl:null, hlType:null } : null;
+    case 'trie':   return ds.size ? { msg:'Current state', tree: ds._cloneTrie(ds.root), hl:null, hlType:null } : null;
+    case 'skip':   return ds.size ? { msg:'Current state', structure: ds._cloneSkip(), hl:null, hlType:null } : null;
+    case 'suffix': return ds.size ? { msg:'Current state', tree: ds._cloneSuffix(ds.root), hl:null, hlType:null } : null;
+    case 'rtree':  return ds.root ? { msg:'Current state', structure: ds._cloneNode(ds.root), hl:null, hlType:null } : null;
+  }
+  return null;
+}
+
+function buildOps() {
+  opGrid.innerHTML = '';
+  CFG[curDS].ops.forEach(op => {
+    let b = document.createElement('button');
+    b.className = 'op-btn' + (op === curOp ? ' active' : '');
+    b.textContent = op;
+    b.onclick = () => setOp(op);
+    opGrid.appendChild(b);
+  });
+}
+
+function setOp(op) {
+  curOp = op;
+  document.querySelectorAll('.op-btn').forEach(b => b.classList.toggle('active', b.textContent === op));
+  const needsVal  = ['Insert','Delete','Search','Merge','Decrease Key','Range Query'].includes(op);
+  const needsVal2 = ['Decrease Key','Range Query'].includes(op);
+  valInput.style.visibility  = needsVal  ? 'visible' : 'hidden';
+  goBtn.style.visibility     = needsVal  ? 'visible' : 'hidden';
+  valInput2.style.display    = needsVal2 ? 'inline-block' : 'none';
+  valInput.placeholder = op === 'Range Query' ? 'From...' : op === 'Decrease Key' ? 'Old key...' : 'Value... (Enter)';
+  if (!needsVal) primaryAction();
+}
+
+function primaryAction() {
+  const ds = DS[curDS];
+  const strDS = new Set(['trie','suffix','rtree']);
+  const rawVal = valInput.value;
+  const val = strDS.has(curDS) ? rawVal : parseInt(rawVal);
+  // Accumulate steps across all operations for all data structures.
+  const isBinom = curDS === 'binom';
+  const isAccum = true;
+  let newSteps = [];
+
+  switch (curOp) {
+    case 'Insert':
+      if (!strDS.has(curDS) && isNaN(val)) { showToast('Enter a value'); return; }
+      if (strDS.has(curDS) && !rawVal.trim()) { showToast('Enter a value'); return; }
+      newSteps = ds.insertSteps(val);
+      valInput.value = '';
+      break;
+    case 'Delete':
+      if (!strDS.has(curDS) && isNaN(val)) { showToast('Enter a value'); return; }
+      if (strDS.has(curDS) && !rawVal.trim()) { showToast('Enter a value'); return; }
+      newSteps = ds.deleteSteps ? ds.deleteSteps(val) : [];
+      if (!newSteps.length) { let s=makeCurrentSnap(); newSteps=s?[s]:[]; }
+      valInput.value = '';
+      break;
+    case 'Search':
+      if (!strDS.has(curDS) && isNaN(val)) { showToast('Enter a value'); return; }
+      if (strDS.has(curDS) && !rawVal.trim()) { showToast('Enter a value'); return; }
+      newSteps = ds.searchSteps ? ds.searchSteps(val) : [];
+      break;
+    case 'Find Min': {
+      let m = ds.findMin();
+      let s = makeCurrentSnap();
+      newSteps = s ? [{ ...s, msg: m!=null?`Min = ${m}`:'Empty', hl: m, hlType:'found' }] : [{ msg: m!=null?`Min = ${m}`:'Empty', heap:null, hl:null }];
+      break;
+    }
+    case 'Find Max': {
+      let m = ds.findMax ? ds.findMax() : null;
+      let s = makeCurrentSnap();
+      newSteps = s ? [{ ...s, msg: m!=null?`Max = ${m}`:'Empty', hl: m, hlType:'found' }] : [{ msg: 'Empty', heap:null, hl:null }];
+      break;
+    }
+    case 'Inorder': {
+      let arr = ds.inorder ? ds.inorder() : [];
+      let s = makeCurrentSnap();
+      newSteps = s ? [{ ...s, msg:`Inorder: [${arr.join(', ')}]` }] : [{ msg:'Empty', heap:null, hl:null }];
+      break;
+    }
+    case 'Extract Min':
+      newSteps = ds.extractMinSteps ? ds.extractMinSteps() : [];
+      if (!newSteps.length) { let s=makeCurrentSnap(); newSteps=s?[s]:[{ msg:'Empty', heap:null, hl:null }]; }
+      break;
+    case 'Merge': {
+      const rawVals = valInput.value.trim();
+      const mergeVals = rawVals
+        ? rawVals.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n))
+        : [10, 20, 30];
+      let mergeSteps = [];
+      const snapM = (msg, hl, h) => mergeSteps.push({ msg, heap: (h || DS.binom.roots).map(r => cloneBH(r)), hl, hlType: 'visit' });
+      let tmp = new BinomHeap();
+      mergeVals.forEach(x => tmp.insert(x));
+      snapM(`Built second heap [${mergeVals.join(',')}] — ${tmp.roots.length} root(s)`, null, tmp.roots);
+      snapM(`Before merge — main heap has ${DS.binom.roots.length} root(s)`, null);
+      const preMerge = DS.binom._merge(DS.binom.roots, tmp.roots);
+      if (preMerge.length) snapM(`Merged root list (before consolidation): degrees [${preMerge.map(r=>r.deg).join(',')}]`, null, preMerge);
+      DS.binom.roots = DS.binom._union(DS.binom.roots, tmp.roots, (msg, hl, h) => snapM(msg, hl, h));
+      DS.binom.size += tmp.size;
+      snapM(`After consolidation — ${DS.binom.roots.length} root(s). Size=${DS.binom.size}`, null);
+      newSteps = mergeSteps;
+      valInput.value = '';
+      break;
+    }
+    case 'Range Query': {
+      const lo = parseInt(valInput.value), hi = parseInt(valInput2.value);
+      if (isNaN(lo) || isNaN(hi)) { showToast('Enter From and To values'); return; }
+      newSteps = DS.btree.rangeQuerySteps(Math.min(lo,hi), Math.max(lo,hi));
+      valInput.value = ''; valInput2.value = '';
+      break;
+    }
+    case 'Sequential':
+      newSteps = DS.btree.sequentialSteps();
+      break;
+    case 'Decrease Key': {
+      const oldK = parseInt(valInput.value), newK = parseInt(valInput2.value);
+      if (isNaN(oldK) || isNaN(newK)) { showToast('Enter old key and new key'); return; }
+      newSteps = DS.binom.decreaseKeySteps(oldK, newK);
+      valInput.value = ''; valInput2.value = '';
+      break;
+    }
+  }
+
+  // Binomial heap and B+ Tree: append new steps to cumulative history and jump to last new step.
+  // All other DS: replace steps entirely.
+  if (isAccum && newSteps.length) {
+    const labelVal = strDS.has(curDS) ? (rawVal || '') : (isNaN(val) ? '' : ' '+val);
+    opBoundaries.push({ label: `${curOp}${labelVal}`, startIdx: steps.length });
+    steps = steps.concat(newSteps);
+    stepIdx = steps.length - 1;
+    applyStep(stepIdx);
+  } else if (!isAccum && newSteps.length) {
+    const labelVal = strDS.has(curDS) ? (rawVal || '') : (isNaN(val) ? '' : ' '+val);
+    opBoundaries = [{ label: `${curOp}${labelVal}`, startIdx: 0 }];
+    steps = newSteps;
+    applyStep(steps.length - 1);
+  }
+  updateInfoBar();
+  // Re-focus the value input so the user can type the next value immediately
+  if (['Insert','Delete','Search'].includes(curOp)) {
+    setTimeout(() => valInput.focus(), 0);
+  }
+}
+
+function updateInfoBar() {
+  const ds = DS[curDS]; const cfg = CFG[curDS];
+  let mn = null, mx = null;
+  try { mn = ds.findMin(); } catch(e) {}
+  try { mx = ds.findMax ? ds.findMax() : null; } catch(e) {}
+  infoBox.innerHTML = `<b>${cfg.label}</b><br>Size: <span>${ds.size}</span>` +
+    (mn!=null?`<br>Min: <span>${mn}</span>`:'') + (mx!=null?`<br>Max: <span>${mx}</span>`:'');
+}
+
+// ═══════════════════════════════════════════════════
+// DATASET RUNNER
+// Loads a dataset.txt file, parses INSERT/SEARCH/DELETE lines,
+// and animates each operation sequentially using existing step functions.
+// Completely separate from manual controls — does not touch them.
+// ═══════════════════════════════════════════════════
+let dsOps = [];          // parsed [{type, value}]
+let dsRunning = false;
+let dsTimer   = null;
+let dsOpIdx   = 0;       // which op we're currently executing
+let dsAllSteps = [];     // accumulated steps across all ops
+let dsOpBoundaries = []; // [{opLabel, startIdx}] for progress display
+
+function parseDsFile(text) {
+  const ops = [];
+  for (const raw of text.split('\n')) {
+    const line = raw.trim();
+    if (!line || line.startsWith('#')) continue;
+    const m = line.match(/^(INSERT|SEARCH|DELETE)\s+(-?\d+)/i);
+    if (m) ops.push({ type: m[1].toUpperCase(), value: parseInt(m[2]) });
+  }
+  return ops;
+}
+
+function dsMapOp(ds, type, value) {
+  // Returns a steps array for the given op type on the current DS.
+  // Heaps: DELETE → extractMinSteps (canonical heap delete).
+  // Unsupported ops return [] (skipped, not counted).
+  switch (type) {
+    case 'INSERT': return ds.insertSteps ? ds.insertSteps(value) : [];
+    case 'SEARCH': return ds.searchSteps ? ds.searchSteps(value) : [];
+    case 'DELETE':
+      if (curDS === 'bheap' || curDS === 'binom') {
+        // Heaps don't support arbitrary delete — use extract-min
+        return ds.extractMinSteps ? ds.extractMinSteps() : [];
+      }
+      return ds.deleteSteps ? ds.deleteSteps(value) : [];
+  }
+  return [];
+}
+
+function dsReset() {
+  dsRunning = false;
+  clearTimeout(dsTimer);
+  dsTimer = null;
+  dsOpIdx = 0;
+  dsAllSteps = [];
+  dsOpBoundaries = [];
+}
+
+function dsStop() {
+  dsReset();
+  document.getElementById('ds-run-btn').disabled  = dsOps.length === 0;
+  document.getElementById('ds-run-btn').textContent = '▶ Run Dataset';
+  document.getElementById('ds-stop-btn').style.display = 'none';
+  document.getElementById('ds-progress').textContent = 'Stopped.';
+}
+
+function dsRun() {
+  if (!dsOps.length) return;
+  // Clear current DS state and accumulated steps
+  DS[curDS].clear();
+  steps = []; stepIdx = 0;
+  dsReset();
+  dsRunning = true;
+
+  document.getElementById('ds-run-btn').textContent  = 'Running…';
+  document.getElementById('ds-run-btn').disabled     = true;
+  document.getElementById('ds-stop-btn').style.display = 'inline-block';
+
+  // Pre-compute all steps for all ops so we can animate smoothly
+  const ds = DS[curDS];
+  for (let i = 0; i < dsOps.length; i++) {
+    const { type, value } = dsOps[i];
+    const opSteps = dsMapOp(ds, type, value);
+    if (opSteps.length) {
+      dsOpBoundaries.push({ label: `${type} ${value}`, startIdx: dsAllSteps.length });
+      dsAllSteps = dsAllSteps.concat(opSteps);
+    }
+  }
+
+  if (!dsAllSteps.length) {
+    document.getElementById('ds-progress').textContent = 'No executable operations.';
+    dsStop();
+    return;
+  }
+
+  // Hand the full step array to the existing step engine
+  steps = dsAllSteps;
+  stepIdx = 0;
+  applyStep(0);
+  updateInfoBar();
+
+  // Animate step by step using the existing speed slider
+  function tick() {
+    if (!dsRunning) return;
+    if (stepIdx >= steps.length - 1) {
+      // Done
+      document.getElementById('ds-progress').textContent =
+        `Done — ${dsOps.length} ops, ${steps.length} steps`;
+      dsStop();
+      document.getElementById('ds-run-btn').disabled = false;
+      document.getElementById('ds-run-btn').textContent = '▶ Run Dataset';
+      updateInfoBar();
+      return;
+    }
+    stepNext();
+    // Update progress label: find which op we're in
+    let curBound = dsOpBoundaries[0];
+    for (const b of dsOpBoundaries) {
+      if (b.startIdx <= stepIdx) curBound = b;
+      else break;
+    }
+    const opNum = dsOpBoundaries.indexOf(curBound) + 1;
+    document.getElementById('ds-progress').textContent =
+      `Op ${opNum}/${dsOpBoundaries.length}: ${curBound.label} — step ${stepIdx+1}/${steps.length}`;
+    dsTimer = setTimeout(tick, +speedRange.value);
+  }
+  tick();
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  // Assign all DOM refs here — after DOM is ready
+  svg        = document.getElementById('main-svg');
+  opGrid     = document.getElementById('op-grid');
+  valInput   = document.getElementById('val-input');
+  valInput2  = document.getElementById('val-input2');
+  goBtn      = document.getElementById('go-btn');
+  infoBox    = document.getElementById('info-box');
+  logList    = document.getElementById('log-list');
+  stepLabel  = document.getElementById('step-label');
+  speedRange = document.getElementById('speed-range');
+  speedVal   = document.getElementById('speed-val');
+  toastEl    = document.getElementById('toast');
+
+  // Wire up all event listeners
+  goBtn.onclick = primaryAction;
+  valInput.addEventListener('keydown', e => { if (e.key === 'Enter') primaryAction(); });
+  valInput2.addEventListener('keydown', e => { if (e.key === 'Enter') primaryAction(); });
+  speedRange.addEventListener('input', () => { speedVal.textContent = speedRange.value + 'ms'; });
+
+  document.getElementById('random-btn').onclick = () => {
+    const ds = DS[curDS];
+    steps = []; opBoundaries = []; stepIdx = 0;
+    let allSteps = [];
+    for (let i = 0; i < 8; i++) {
+      let v = Math.floor(Math.random()*150)+1;
+      let s = ds.insertSteps(v);
+      allSteps = allSteps.concat(s);
+    }
+    steps = allSteps;
+    if (steps.length) applyStep(steps.length - 1);
+    updateInfoBar();
+  };
+
+  document.getElementById('clear-btn').onclick = () => {
+    DS[curDS].clear(); steps = []; opBoundaries = []; stepIdx = 0;
+    resetRenderer(); stepLabel.textContent = '-';
+    clearLog(); updateInfoBar();
+    pushLog('Cleared', 'ok');
+  };
+
+  document.getElementById('prev-btn').onclick = stepPrev;
+  document.getElementById('next-btn').onclick = stepNext;
+  document.getElementById('play-btn').onclick = togglePlay;
+  document.querySelectorAll('.tab').forEach(t => { t.onclick = () => switchDS(t.dataset.ds); });
+
+  // ── Zoom & Pan ────────────────────────────────────────────────
+  let zoomScale = 1;
+  let panX = 0, panY = 0;
+  let isPanning = false, panStartX = 0, panStartY = 0, panOriginX = 0, panOriginY = 0;
+  const svgWrap = document.getElementById('svg-wrap');
+  const ZOOM_MIN = 0.2, ZOOM_MAX = 5, ZOOM_STEP = 0.15;
+
+  function applyTransform() {
+    svg.style.transform = `translate(${panX}px, ${panY}px) scale(${zoomScale})`;
+    svg.style.transformOrigin = '0 0';
+    document.getElementById('zoom-label').textContent = Math.round(zoomScale * 100) + '%';
+  }
+
+  function zoomBy(delta, cx, cy) {
+    const rect = svgWrap.getBoundingClientRect();
+    const ox = (cx !== undefined ? cx : rect.width / 2) - rect.left;
+    const oy = (cy !== undefined ? cy : rect.height / 2) - rect.top;
+    const newScale = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, zoomScale + delta));
+    const ratio = newScale / zoomScale;
+    panX = ox - ratio * (ox - panX);
+    panY = oy - ratio * (oy - panY);
+    zoomScale = newScale;
+    applyTransform();
+  }
+
+  function resetZoom() {
+    zoomScale = 1; panX = 0; panY = 0;
+    applyTransform();
+  }
+
+  document.getElementById('zoom-in').onclick    = () => zoomBy(+ZOOM_STEP);
+  document.getElementById('zoom-out').onclick   = () => zoomBy(-ZOOM_STEP);
+  document.getElementById('zoom-reset').onclick = resetZoom;
+
+  // Scroll-wheel zoom
+  svgWrap.addEventListener('wheel', e => {
+    e.preventDefault();
+    const delta = e.deltaY < 0 ? +ZOOM_STEP : -ZOOM_STEP;
+    zoomBy(delta, e.clientX - svgWrap.getBoundingClientRect().left,
+                  e.clientY - svgWrap.getBoundingClientRect().top);
+  }, { passive: false });
+
+  // Pan by dragging
+  svgWrap.addEventListener('mousedown', e => {
+    if (e.button !== 0) return;
+    isPanning = true;
+    panStartX = e.clientX; panStartY = e.clientY;
+    panOriginX = panX; panOriginY = panY;
+    svgWrap.classList.add('panning');
+  });
+  window.addEventListener('mousemove', e => {
+    if (!isPanning) return;
+    panX = panOriginX + (e.clientX - panStartX);
+    panY = panOriginY + (e.clientY - panStartY);
+    applyTransform();
+  });
+  window.addEventListener('mouseup', () => {
+    if (isPanning) { isPanning = false; svgWrap.classList.remove('panning'); }
+  });
+
+  // Keyboard shortcuts: +/- for zoom, 0 for reset
+  document.addEventListener('keydown', e => {
+    if (e.target.tagName === 'INPUT') return;
+    if (e.key === '+' || e.key === '=') { e.preventDefault(); zoomBy(+ZOOM_STEP); }
+    if (e.key === '-')                  { e.preventDefault(); zoomBy(-ZOOM_STEP); }
+    if (e.key === '0')                  { e.preventDefault(); resetZoom(); }
+  });
+
+  applyTransform();
+
+  // ── Panel Resize ──────────────────────────────────────────────
+  // Single global drag state — avoids duplicate window listeners
+  let _rz = null; // { startX, startW, panel, side, handle }
+
+  window.addEventListener('mousemove', e => {
+    if (!_rz) return;
+    const dx = e.clientX - _rz.startX;
+    const newW = _rz.side === 'left' ? _rz.startW + dx : _rz.startW - dx;
+    _rz.panel.style.width = Math.max(140, Math.min(520, newW)) + 'px';
+  });
+
+  window.addEventListener('mouseup', () => {
+    if (!_rz) return;
+    _rz.handle.classList.remove('dragging');
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+    _rz = null;
+  });
+
+  function makeResizer(handle, panel, side) {
+    handle.addEventListener('mousedown', e => {
+      e.preventDefault();
+      _rz = { startX: e.clientX, startW: panel.offsetWidth, panel, side, handle };
+      handle.classList.add('dragging');
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+    });
+  }
+
+  makeResizer(
+    document.getElementById('resize-left'),
+    document.getElementById('sidebar'),
+    'left'
+  );
+  makeResizer(
+    document.getElementById('resize-right'),
+    document.getElementById('log-panel'),
+    'right'
+  );
+
+  switchDS('avl');
+});
+
+// ═══════════════════════════════════════════════════
+// DATASET BENCHMARK TAB — CSV load, charts, table
+// ═══════════════════════════════════════════════════
+(function() {
+  const DS_COLORS = {
+    'AVL Tree':       '#10b981',
+    'Red-Black Tree': '#ef4444',
+    'Binary Heap':    '#f59e0b',
+    'Binomial Heap':  '#38bdf8',
+    'B+ Tree (T=3)':  '#a78bfa',
+  };
+  const DS_ORDER = ['AVL Tree','Red-Black Tree','Binary Heap','Binomial Heap','B+ Tree (T=3)'];
+  let benchRows = null;
+
+  // ── CSV parser ──────────────────────────────────
+  function parseCSV(text) {
+    const lines = text.trim().split('\n');
+    const headers = lines[0].split(',').map(h => h.trim());
+    return lines.slice(1).map(line => {
+      const vals = line.split(',');
+      const obj = {};
+      headers.forEach((h, i) => obj[h] = vals[i] ? vals[i].trim() : '');
+      return obj;
+    }).filter(r => r.DataStructure);
+  }
+
+  // ── Render all sections ─────────────────────────
+  function renderBench(rows, filename) {
+    benchRows = rows.sort((a,b) => DS_ORDER.indexOf(a.DataStructure) - DS_ORDER.indexOf(b.DataStructure));
+
+    // meta
+    const ins  = +rows[0].InsertOps || 0;
+    const srch = +rows[0].SearchOps || 0;
+    const del  = +rows[0].DeleteOps || 0;
+    document.getElementById('bm-ops').textContent  = (ins+srch+del).toLocaleString();
+    document.getElementById('bm-ins').textContent  = ins.toLocaleString();
+    document.getElementById('bm-srch').textContent = srch.toLocaleString();
+    document.getElementById('bm-del').textContent  = del.toLocaleString();
+    document.getElementById('bm-file').textContent = filename || 'comparison.csv';
+    document.getElementById('bench-meta').style.display = 'flex';
+
+    document.getElementById('bench-empty').style.display = 'none';
+    const dataEl = document.getElementById('bench-data');
+    dataEl.style.display = 'flex';
+
+    document.getElementById('bench-load-label').classList.add('loaded');
+    document.getElementById('bench-load-label').childNodes[0].textContent = '✓ ' + (filename || 'comparison.csv');
+
+    renderBenchWinners(rows);
+    renderBenchCards(rows);
+    benchRedrawCharts();
+    renderBenchTable(rows);
+  }
+
+  // ── Winners ─────────────────────────────────────
+  function renderBenchWinners(rows) {
+    const cats = [
+      { label:'🏆 Best Insert',  key:'InsertNsPerOp', unit:'ns/op' },
+      { label:'🔍 Best Search',  key:'SearchNsPerOp', unit:'ns/op' },
+      { label:'🗑 Best Delete',  key:'DeleteNsPerOp', unit:'ns/op' },
+      { label:'⚡ Best Overall', key:'TotalTimeMs',   unit:'ms'    },
+    ];
+    document.getElementById('bench-winners').innerHTML = cats.map(cat => {
+      const valid = rows.filter(r => +r[cat.key] > 0);
+      if (!valid.length) return '';
+      const best  = valid.reduce((b,r) => +r[cat.key] < +b[cat.key] ? r : b);
+      const color = DS_COLORS[best.DataStructure] || '#6366f1';
+      return `<div class="bench-winner" style="border-top:3px solid ${color}">
+        <div class="wcat">${cat.label}</div>
+        <div class="wname" style="color:${color}">${best.DataStructure}</div>
+        <div class="wval">${(+best[cat.key]).toFixed(2)} ${cat.unit}</div>
+      </div>`;
+    }).join('');
+  }
+
+  // ── Stat cards ───────────────────────────────────
+  function renderBenchCards(rows) {
+    document.getElementById('bench-cards').innerHTML = rows.map(r => {
+      const color = DS_COLORS[r.DataStructure] || '#6366f1';
+      return `<div class="bench-card" style="border-top-color:${color}">
+        <h4><span class="bench-dot" style="background:${color}"></span>${r.DataStructure}</h4>
+        <div class="bval" style="color:${color}">${(+r.TotalTimeMs).toFixed(3)}</div>
+        <div class="bsub">ms total</div>
+        <div class="brows">
+          <div class="brow"><span class="bl">Insert</span><span class="bn">${(+r.InsertNsPerOp).toFixed(1)} ns/op</span></div>
+          <div class="brow"><span class="bl">Search</span><span class="bn">${(+r.SearchNsPerOp).toFixed(1)} ns/op</span></div>
+          <div class="brow"><span class="bl">Delete</span><span class="bn">${(+r.DeleteNsPerOp).toFixed(1)} ns/op</span></div>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  // ── Shared tooltip for bench charts ─────────────
+  const _benchTip = (() => {
+    const el = document.createElement('div');
+    el.style.cssText = 'position:fixed;pointer-events:none;opacity:0;transition:opacity .15s;' +
+      'background:#0f172a;border:1px solid #334155;border-radius:6px;padding:6px 10px;' +
+      'font-size:11px;color:#e2e8f0;white-space:nowrap;z-index:9999;font-family:monospace';
+    document.body.appendChild(el);
+    return el;
+  })();
+  function _showBenchTip(e, html) {
+    _benchTip.innerHTML = html; _benchTip.style.opacity = '1';
+    _benchTip.style.left = (e.clientX + 14) + 'px';
+    _benchTip.style.top  = (e.clientY - 10) + 'px';
+  }
+  function _hideBenchTip() { _benchTip.style.opacity = '0'; }
+  const _benchBarMeta = {};
+
+  // ── Bar chart ────────────────────────────────────
+  function drawBenchBar(canvasId, rows, key) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    const wrap = canvas.parentElement;
+    canvas.width  = wrap.clientWidth  || 400;
+    canvas.height = wrap.clientHeight || 200;
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    const PAD = { top:22, right:16, bottom:36, left:54 };
+    const cW = W - PAD.left - PAD.right;
+    const cH = H - PAD.top  - PAD.bottom;
+
+    const vals = rows.map(r => +r[key] || 0);
+    const maxV = Math.max(...vals) * 1.15 || 1;
+    const barW = Math.floor(cW / rows.length * 0.55);
+    const gap  = Math.floor(cW / rows.length);
+
+    ctx.clearRect(0, 0, W, H);
+
+    // grid
+    ctx.strokeStyle = '#334155'; ctx.lineWidth = 1;
+    for (let i = 0; i <= 4; i++) {
+      const y = PAD.top + cH - (i/4)*cH;
+      ctx.beginPath(); ctx.moveTo(PAD.left, y); ctx.lineTo(PAD.left+cW, y); ctx.stroke();
+      ctx.fillStyle = '#64748b'; ctx.font = '9px monospace'; ctx.textAlign = 'right';
+      const label = maxV * i / 4;
+      ctx.fillText(label < 10 ? label.toFixed(2) : Math.round(label), PAD.left-4, y+3);
+    }
+
+    const bars = [];
+    rows.forEach((r, i) => {
+      const v     = vals[i];
+      const color = DS_COLORS[r.DataStructure] || '#6366f1';
+      const x     = PAD.left + i*gap + (gap-barW)/2;
+      const bH    = (v/maxV)*cH;
+      const y     = PAD.top + cH - bH;
+
+      bars.push({ x, y, w: barW, h: bH, color, name: r.DataStructure, val: v });
+
+      const grad = ctx.createLinearGradient(0, y, 0, y+bH);
+      grad.addColorStop(0, color);
+      grad.addColorStop(1, color+'44');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(x, y, barW, bH, [3,3,0,0]);
+      else ctx.rect(x, y, barW, bH);
+      ctx.fill();
+
+      ctx.fillStyle = color; ctx.font = 'bold 9px monospace'; ctx.textAlign = 'center';
+      ctx.fillText(v < 10 ? v.toFixed(2) : v.toFixed(1), x+barW/2, y-4);
+
+      const short = r.DataStructure.replace(' Tree','').replace(' Heap','').replace(' (T=3)','');
+      ctx.fillStyle = '#94a3b8'; ctx.font = '9px sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText(short, x+barW/2, PAD.top+cH+14);
+    });
+
+    const unit = key.includes('Ms') ? 'ms' : 'ns/op';
+    _benchBarMeta[canvasId] = { bars, unit };
+
+    if (!canvas._tipWired) {
+      canvas._tipWired = true;
+      canvas.addEventListener('mousemove', e => {
+        const meta = _benchBarMeta[canvas.id];
+        if (!meta) return;
+        const rect = canvas.getBoundingClientRect();
+        const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+        let hit = null;
+        for (const b of meta.bars) {
+          if (mx >= b.x && mx <= b.x + b.w && my >= b.y && my <= b.y + b.h) { hit = b; break; }
+        }
+        if (hit) {
+          canvas.style.cursor = 'crosshair';
+          _showBenchTip(e,
+            `<span style="color:${hit.color}">●</span> <b>${hit.name}</b><br>` +
+            `${hit.val.toFixed(hit.val < 10 ? 3 : 2)} ${meta.unit}`);
+        } else {
+          canvas.style.cursor = '';
+          _hideBenchTip();
+        }
+      });
+      canvas.addEventListener('mouseleave', _hideBenchTip);
+    }
+  }
+
+  window.benchRedrawCharts = function() {
+    if (!benchRows) return;
+    requestAnimationFrame(() => {
+      drawBenchBar('bc-insert', benchRows, 'InsertNsPerOp');
+      drawBenchBar('bc-search', benchRows, 'SearchNsPerOp');
+      drawBenchBar('bc-delete', benchRows, 'DeleteNsPerOp');
+      drawBenchBar('bc-total',  benchRows, 'TotalTimeMs');
+    });
+  };
+
+  // ── Table ────────────────────────────────────────
+  function renderBenchTable(rows) {
+    const cols = ['InsertNsPerOp','SearchNsPerOp','DeleteNsPerOp','TotalTimeMs'];
+    const best = {}, worst = {};
+    cols.forEach(c => {
+      const v = rows.filter(r => +r[c] > 0).map(r => +r[c]);
+      best[c]  = Math.min(...v);
+      worst[c] = Math.max(...v);
+    });
+    document.getElementById('bench-tbody').innerHTML = rows.map(r => {
+      const color = DS_COLORS[r.DataStructure] || '#6366f1';
+      const cell = (col, val, dec=1) => {
+        const n = +val;
+        const cls = n === best[col] ? 'bench-best' : n === worst[col] ? 'bench-worst' : '';
+        return `<td class="${cls}">${n.toFixed(dec)}</td>`;
+      };
+      return `<tr>
+        <td><span class="bench-dot" style="background:${color}"></span>${r.DataStructure}</td>
+        <td>${r.InsertOps}</td>${cell('InsertNsPerOp',r.InsertNsPerOp)}
+        <td>${r.SearchOps}</td>${cell('SearchNsPerOp',r.SearchNsPerOp)}
+        <td>${r.DeleteOps}</td>${cell('DeleteNsPerOp',r.DeleteNsPerOp)}
+        ${cell('TotalTimeMs',r.TotalTimeMs,3)}
+      </tr>`;
+    }).join('');
+  }
+
+  // ── File input wiring ────────────────────────────
+  document.addEventListener('DOMContentLoaded', () => {
+    const input = document.getElementById('bench-csv-input');
+    const label = document.getElementById('bench-load-label');
+    label.addEventListener('click', () => input.click());
+    input.addEventListener('change', () => {
+      const file = input.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = e => renderBench(parseCSV(e.target.result), file.name);
+      reader.readAsText(file);
+      input.value = '';
+    });
+
+    // drag & drop anywhere on bench panel
+    const panel = document.getElementById('bench-panel');
+    panel.addEventListener('dragover', e => e.preventDefault());
+    panel.addEventListener('drop', e => {
+      e.preventDefault();
+      const file = e.dataTransfer.files[0];
+      if (!file || !file.name.endsWith('.csv')) return;
+      const reader = new FileReader();
+      reader.onload = ev => renderBench(parseCSV(ev.target.result), file.name);
+      reader.readAsText(file);
+    });
+
+    // auto-load via fetch if served from same directory
+    fetch('comparison.csv')
+      .then(r => { if (!r.ok) throw 0; return r.text(); })
+      .then(text => renderBench(parseCSV(text), 'comparison.csv'))
+      .catch(() => {});
+  });
+
+  // redraw on resize
+  window.addEventListener('resize', () => {
+    if (document.getElementById('bench-panel').style.display !== 'none') benchRedrawCharts();
+  });
+})();
+
+</script>
+</body>
+</html>
+

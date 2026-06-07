@@ -1,0 +1,654 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>DS Platform</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+:root {
+  --bg:#0a0f1e; --surface:#111827; --surface2:#1a2235; --border:#1e2d45;
+  --text:#e2e8f0; --muted:#64748b; --cur:#6366f1;
+  --avl:#10b981; --rbt:#ef4444; --bheap:#f59e0b; --binom:#38bdf8; --btree:#a78bfa;
+  --radius:10px; --glow:0 0 20px rgba(99,102,241,.25);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;
+  height:100vh;display:flex;flex-direction:column;overflow:hidden}
+
+/* ── TOP NAV ── */
+.top-nav{display:flex;align-items:center;gap:6px;padding:8px 16px;
+  background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0;
+  box-shadow:0 1px 20px rgba(0,0,0,.4)}
+.nav-logo{font-size:14px;font-weight:700;color:var(--cur);margin-right:12px;letter-spacing:.04em}
+.nav-tab{padding:6px 14px;border-radius:7px;cursor:pointer;font-size:12px;font-weight:500;
+  color:var(--muted);border:1px solid transparent;transition:all .2s;user-select:none}
+.nav-tab:hover{color:var(--text);background:#ffffff0d}
+.nav-tab.active{color:#fff;border-color:var(--cur);
+  background:linear-gradient(135deg,rgba(99,102,241,.2),rgba(99,102,241,.05));
+  box-shadow:var(--glow)}
+.nav-sep{width:1px;height:20px;background:var(--border);margin:0 4px}
+
+/* ── PANELS ── */
+.panel{display:none;flex:1;overflow:hidden}
+.panel.active{display:flex}
+
+/* ── SHARED SIDEBAR ── */
+.sidebar{width:230px;background:var(--surface);border-right:1px solid var(--border);
+  display:flex;flex-direction:column;padding:14px;gap:12px;overflow-y:auto;flex-shrink:0}
+.sidebar-section{display:flex;flex-direction:column;gap:6px}
+.sidebar-label{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);
+  font-weight:600;padding-bottom:2px}
+
+/* ── BUTTONS ── */
+.btn{padding:7px 14px;border-radius:8px;border:none;background:var(--cur);color:#fff;
+  font-size:12px;font-weight:600;cursor:pointer;transition:all .2s;letter-spacing:.02em}
+.btn:hover{opacity:.85;transform:translateY(-1px);box-shadow:var(--glow)}
+.btn:active{transform:translateY(0)}
+.btn.sec{background:var(--surface2);color:var(--text);border:1px solid var(--border)}
+.btn.sec:hover{border-color:var(--cur);color:var(--cur)}
+.btn.danger{background:#7f1d1d;color:#fca5a5}
+.btn-row{display:flex;gap:6px}
+.btn-row .btn{flex:1}
+
+/* ── INPUTS ── */
+.input-row{display:flex;gap:6px}
+input[type=text],input[type=number],select{
+  flex:1;padding:7px 10px;border-radius:8px;border:1px solid var(--border);
+  background:#0a0f1e;color:var(--text);font-size:12px;outline:none;transition:border-color .2s}
+input:focus,select:focus{border-color:var(--cur)}
+select option{background:var(--surface)}
+
+/* ── DS SELECTOR CHIPS ── */
+.ds-chips{display:flex;flex-wrap:wrap;gap:5px}
+.ds-chip{padding:4px 10px;border-radius:20px;font-size:11px;font-weight:600;cursor:pointer;
+  border:1px solid var(--border);color:var(--muted);transition:all .2s;user-select:none}
+.ds-chip:hover{color:var(--text)}
+.ds-chip.active{color:#fff;border-color:currentColor}
+.ds-chip[data-ds=avl].active{color:var(--avl);background:rgba(16,185,129,.12)}
+.ds-chip[data-ds=rbt].active{color:var(--rbt);background:rgba(239,68,68,.12)}
+.ds-chip[data-ds=bheap].active{color:var(--bheap);background:rgba(245,158,11,.12)}
+.ds-chip[data-ds=binom].active{color:var(--binom);background:rgba(56,189,248,.12)}
+.ds-chip[data-ds=btree].active{color:var(--btree);background:rgba(167,139,250,.12)}
+
+/* ── CANVAS AREA ── */
+.canvas-area{flex:1;display:flex;flex-direction:column;overflow:hidden;position:relative}
+.svg-wrap{flex:1;overflow:hidden;background:var(--bg);cursor:grab;position:relative}
+.svg-wrap.panning{cursor:grabbing}
+.svg-wrap svg{display:block;transform-origin:0 0}
+
+/* ── STEPPER BAR ── */
+.stepper{display:flex;align-items:center;gap:8px;padding:8px 14px;
+  background:var(--surface);border-top:1px solid var(--border);flex-shrink:0}
+.stepper button{padding:4px 11px;border-radius:6px;border:1px solid var(--border);
+  background:transparent;color:var(--text);cursor:pointer;font-size:12px;transition:all .15s}
+.stepper button:hover{background:#ffffff10;border-color:var(--cur)}
+#step-label{font-size:11px;color:var(--muted);flex:1;text-align:center;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.zoom-bar{display:flex;align-items:center;gap:4px}
+.zoom-btn{width:24px;height:24px;border-radius:5px;border:1px solid var(--border);
+  background:transparent;color:var(--text);font-size:13px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;transition:all .15s}
+.zoom-btn:hover{background:#ffffff15;border-color:var(--cur)}
+#zoom-label{font-size:10px;color:var(--muted);min-width:34px;text-align:center;font-family:monospace}
+.spd{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted)}
+.spd input{width:70px;accent-color:var(--cur)}
+
+/* ── LOG PANEL ── */
+.log-panel{width:200px;background:var(--surface);border-left:1px solid var(--border);
+  display:flex;flex-direction:column;flex-shrink:0}
+.log-panel h4{padding:9px 12px;font-size:10px;text-transform:uppercase;letter-spacing:.1em;
+  color:var(--muted);border-bottom:1px solid var(--border);font-weight:600}
+.log-list{flex:1;overflow-y:auto;padding:6px;display:flex;flex-direction:column;gap:3px}
+.log-entry{font-size:10px;padding:4px 7px;border-radius:5px;border-left:2px solid var(--cur);
+  background:#ffffff06;color:var(--text);word-break:break-word;transition:all .15s;cursor:pointer}
+.log-entry:hover{background:#ffffff10}
+.log-entry.active-step{background:rgba(99,102,241,.18);border-color:var(--cur);
+  color:#fff;font-weight:600}
+.log-entry.op-sep{border-left:2px solid #f59e0b;background:rgba(245,158,11,.08);
+  color:#fbbf24;font-weight:700;font-size:10px;letter-spacing:.04em;cursor:pointer;
+  padding:4px 7px;margin-top:4px}
+
+/* ── PHASE 2: TIMELINE ── */
+.timeline-wrap{padding:0 14px 8px;background:var(--surface);border-top:1px solid var(--border);
+  flex-shrink:0}
+.timeline-track{position:relative;height:28px;display:flex;align-items:center}
+.timeline-slider{width:100%;height:4px;-webkit-appearance:none;appearance:none;
+  background:var(--border);border-radius:2px;outline:none;cursor:pointer;position:relative;z-index:2}
+.timeline-slider::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;
+  border-radius:50%;background:var(--cur);cursor:pointer;box-shadow:0 0 8px rgba(99,102,241,.6);
+  transition:transform .15s}
+.timeline-slider::-webkit-slider-thumb:hover{transform:scale(1.3)}
+.tl-marker{position:absolute;width:2px;height:12px;background:#f59e0b;border-radius:1px;
+  top:50%;transform:translateY(-50%);cursor:pointer;z-index:3;transition:height .15s}
+.tl-marker:hover{height:18px}
+.tl-marker::after{content:attr(data-label);position:absolute;bottom:16px;left:50%;
+  transform:translateX(-50%);background:#1a2235;border:1px solid var(--border);
+  border-radius:4px;padding:2px 6px;font-size:9px;color:var(--text);white-space:nowrap;
+  opacity:0;pointer-events:none;transition:opacity .15s}
+.tl-marker:hover::after{opacity:1}
+.timeline-info{display:flex;justify-content:space-between;font-size:10px;color:var(--muted);
+  padding:0 2px}
+
+/* ── PHASE 3: COMPARE PANEL ── */
+#panel-compare{flex-direction:column}
+.cmp-top{display:flex;align-items:center;gap:10px;padding:12px 16px;
+  background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0;flex-wrap:wrap}
+.cmp-top label{font-size:11px;color:var(--muted)}
+.cmp-canvases{flex:1;display:grid;gap:2px;overflow:hidden;background:var(--border)}
+.cmp-slot{background:var(--bg);display:flex;flex-direction:column;overflow:hidden;position:relative}
+.cmp-slot-header{display:flex;align-items:center;justify-content:space-between;
+  padding:6px 12px;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0}
+.cmp-slot-title{font-size:12px;font-weight:700}
+.cmp-slot-svg-wrap{flex:1;overflow:hidden;cursor:grab}
+.cmp-slot-svg-wrap svg{display:block;transform-origin:0 0}
+.cmp-bottom{display:flex;align-items:center;gap:8px;padding:8px 14px;
+  background:var(--surface);border-top:1px solid var(--border);flex-shrink:0}
+.cmp-step-label{font-size:11px;color:var(--muted);flex:1;text-align:center}
+
+/* ── PHASE 4: METRICS PANEL ── */
+.metrics-panel{width:180px;background:var(--surface);border-left:1px solid var(--border);
+  display:flex;flex-direction:column;flex-shrink:0;overflow-y:auto}
+.metrics-panel h4{padding:9px 12px;font-size:10px;text-transform:uppercase;letter-spacing:.1em;
+  color:var(--muted);border-bottom:1px solid var(--border);font-weight:600}
+.metric-card{margin:8px;padding:10px;background:var(--surface2);border-radius:8px;
+  border:1px solid var(--border)}
+.metric-card .mc-label{font-size:10px;color:var(--muted);margin-bottom:4px}
+.metric-card .mc-val{font-size:22px;font-weight:700;font-family:monospace;color:var(--cur)}
+.metric-card .mc-sub{font-size:9px;color:var(--muted);margin-top:2px}
+.metric-bar-wrap{margin:8px;display:flex;flex-direction:column;gap:6px}
+.metric-bar-row{display:flex;flex-direction:column;gap:2px}
+.metric-bar-label{display:flex;justify-content:space-between;font-size:10px;color:var(--muted)}
+.metric-bar-track{height:5px;background:var(--border);border-radius:3px;overflow:hidden}
+.metric-bar-fill{height:100%;border-radius:3px;transition:width .4s ease;background:var(--cur)}
+
+/* ── PHASE 5: REPLAY PANEL ── */
+.drop-zone{border:2px dashed var(--border);border-radius:10px;padding:20px 12px;
+  text-align:center;cursor:pointer;transition:all .2s;background:transparent}
+.drop-zone:hover,.drop-zone.drag-over{border-color:var(--cur);background:rgba(99,102,241,.06)}
+.drop-icon{font-size:28px;margin-bottom:6px;opacity:.5}
+.drop-label{font-size:12px;color:var(--text);font-weight:500}
+.drop-sub{font-size:10px;color:var(--muted);margin-top:4px}
+.drop-link{color:var(--cur);cursor:pointer;text-decoration:underline}
+.drop-link input{display:none}
+.replay-meta{background:var(--surface2);border:1px solid var(--border);border-radius:8px;
+  padding:8px 10px;font-size:10px;color:var(--muted);display:flex;flex-direction:column;gap:3px}
+.replay-meta b{color:var(--text)}
+.op-jump-list{display:flex;flex-direction:column;gap:3px;max-height:180px;overflow-y:auto}
+.op-jump-btn{padding:4px 8px;border-radius:5px;border:1px solid var(--border);
+  background:transparent;color:var(--muted);font-size:10px;cursor:pointer;text-align:left;
+  transition:all .15s;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.op-jump-btn:hover{border-color:var(--cur);color:var(--text);background:#ffffff08}
+.op-jump-btn.active{border-color:var(--cur);color:var(--cur);background:rgba(99,102,241,.1)}
+
+/* ── SCENARIO PANEL ── */
+.scenario-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.scenario-btn{padding:8px 6px;border-radius:8px;border:1px solid var(--border);
+  background:transparent;color:var(--muted);font-size:11px;cursor:pointer;
+  transition:all .2s;text-align:center;font-weight:500}
+.scenario-btn:hover{border-color:var(--cur);color:var(--text);background:#ffffff08}
+.scenario-btn.active{border-color:var(--cur);color:var(--cur);background:rgba(99,102,241,.12)}
+
+/* ── INFO BOX ── */
+.info-box{background:var(--surface2);border:1px solid var(--border);border-radius:8px;
+  padding:10px;font-size:11px;color:var(--muted);line-height:1.8}
+.info-box b{color:var(--text)}
+.info-box span{color:var(--cur);font-weight:600}
+
+/* ── TOAST ── */
+#toast{position:fixed;bottom:20px;right:20px;background:var(--surface2);
+  border:1px solid var(--border);border-radius:8px;padding:10px 16px;font-size:12px;
+  color:var(--text);opacity:0;transition:opacity .3s;pointer-events:none;z-index:9999;
+  box-shadow:0 4px 20px rgba(0,0,0,.4)}
+#toast.show{opacity:1}
+
+/* ── SCROLLBAR ── */
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+::-webkit-scrollbar-thumb:hover{background:var(--muted)}
+
+/* ── GLOW EFFECTS ── */
+.glow-avl  { box-shadow:0 0 12px rgba(16,185,129,.3) }
+.glow-rbt  { box-shadow:0 0 12px rgba(239,68,68,.3) }
+
+/* ── REPLAY SUMMARY ── */
+.rp-summary-row{padding:5px 10px;border-bottom:1px solid var(--border);font-size:10px}
+.rp-summary-row:last-child{border-bottom:none}
+.rp-summary-op{font-weight:700;font-family:monospace;margin-bottom:2px}
+.rp-summary-op.INSERT{color:var(--avl)}
+.rp-summary-op.SEARCH{color:var(--binom)}
+.rp-summary-op.DELETE{color:var(--rbt)}
+.rp-summary-stats{display:flex;gap:8px;flex-wrap:wrap;color:var(--muted)}
+.rp-summary-stats span{white-space:nowrap}
+.rp-summary-stats b{color:var(--text)}
+.glow-bheap{ box-shadow:0 0 12px rgba(245,158,11,.3) }
+.glow-binom{ box-shadow:0 0 12px rgba(56,189,248,.3) }
+.glow-btree{ box-shadow:0 0 12px rgba(167,139,250,.3) }
+
+/* ── COMPARE SLOT SELECTOR ── */
+.cmp-slot-selector{display:flex;align-items:center;gap:5px;
+  background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:4px 8px}
+.cmp-slot-selector label{font-size:10px;color:var(--muted);white-space:nowrap}
+.cmp-slot-selector select{padding:3px 6px;border-radius:5px;border:1px solid var(--border);
+  background:var(--bg);color:var(--text);font-size:11px;outline:none;cursor:pointer}
+.cmp-slot-selector select:focus{border-color:var(--cur)}
+.cmp-add-slot{padding:4px 10px;border-radius:8px;border:1px dashed var(--border);
+  background:transparent;color:var(--muted);font-size:11px;cursor:pointer;transition:all .2s}
+.cmp-add-slot:hover{border-color:var(--cur);color:var(--cur)}
+.cmp-remove-slot{width:18px;height:18px;border-radius:50%;border:1px solid var(--border);
+  background:transparent;color:var(--muted);font-size:11px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;transition:all .15s;line-height:1}
+.cmp-remove-slot:hover{border-color:#ef4444;color:#ef4444;background:rgba(239,68,68,.1)}
+.resize-handle{width:8px;background:transparent;cursor:col-resize;flex-shrink:0;
+  position:relative;z-index:10;transition:background .15s}
+.resize-handle:hover,.resize-handle.dragging{
+  background:color-mix(in srgb,var(--cur) 30%,transparent)}
+.resize-handle::after{content:'';position:absolute;top:50%;left:50%;
+  transform:translate(-50%,-50%);width:2px;height:48px;
+  background:var(--border);border-radius:2px;transition:background .15s}
+.resize-handle:hover::after,.resize-handle.dragging::after{background:var(--cur)}
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════
+     TOP NAVIGATION
+     ═══════════════════════════════════════════════════ -->
+<nav class="top-nav">
+  <span class="nav-logo">⬡ DS Platform</span>
+  <div class="nav-tab active" data-panel="visulab">🔬 Visualizer Lab</div>
+  <div class="nav-tab" data-panel="replay">▶ Dataset Replay</div>
+  <div class="nav-tab" data-panel="compare">⚖ Compare</div>
+  <div class="nav-sep"></div>
+  <div class="nav-tab" data-panel="scenarios">🎲 Scenarios</div>
+</nav>
+
+<!-- ═══════════════════════════════════════════════════
+     PANEL 1 — VISUALIZER LAB  (existing single-DS view)
+     ═══════════════════════════════════════════════════ -->
+<div class="panel active" id="panel-visulab">
+  <!-- Sidebar -->
+  <div class="sidebar" id="vl-sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-label">Structure</div>
+      <div class="ds-chips" id="vl-ds-chips">
+        <div class="ds-chip active" data-ds="avl">AVL</div>
+        <div class="ds-chip" data-ds="rbt">RBT</div>
+        <div class="ds-chip" data-ds="bheap">BHeap</div>
+        <div class="ds-chip" data-ds="binom">Binom</div>
+        <div class="ds-chip" data-ds="btree">B+Tree</div>
+        <div class="ds-chip" data-ds="tbt">TBT</div>
+        <div class="ds-chip" data-ds="trie">Trie</div>
+        <div class="ds-chip" data-ds="skip">Skip</div>
+        <div class="ds-chip" data-ds="suffix">Suffix</div>
+        <div class="ds-chip" data-ds="rtree">R-Tree</div>
+      </div>
+    </div>
+    <div class="sidebar-section">
+      <div class="sidebar-label">Operation</div>
+      <div id="vl-op-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:5px"></div>
+    </div>
+    <div class="input-row">
+      <input id="vl-val" type="text" placeholder="Value (Enter)"/>
+      <button class="btn" id="vl-go">Go</button>
+    </div>
+    <div class="btn-row">
+      <button class="btn sec" id="vl-random">Random</button>
+      <button class="btn sec" id="vl-clear">Clear</button>
+    </div>
+    <div class="info-box" id="vl-info">Select a structure.</div>
+  </div>
+
+  <div class="resize-handle" id="vl-resize-left"></div>
+
+  <!-- Canvas -->
+  <div class="canvas-area">
+    <div class="svg-wrap" id="vl-svg-wrap">
+      <svg id="vl-svg" xmlns="http://www.w3.org/2000/svg" width="800" height="500"></svg>
+    </div>
+    <!-- Phase 2: Timeline -->
+    <div class="timeline-wrap" id="vl-timeline-wrap">
+      <div class="timeline-track" id="vl-tl-track">
+        <input type="range" class="timeline-slider" id="vl-slider" min="0" max="0" value="0"/>
+      </div>
+      <div class="timeline-info">
+        <span id="vl-tl-op">—</span>
+        <span id="vl-tl-pos">0 / 0</span>
+      </div>
+    </div>
+    <!-- Stepper -->
+    <div class="stepper">
+      <button id="vl-prev">⏮</button>
+      <button id="vl-play">▶</button>
+      <button id="vl-next">⏭</button>
+      <span id="step-label">—</span>
+      <div class="zoom-bar">
+        <button class="zoom-btn" id="vl-zout">−</button>
+        <span id="zoom-label">100%</span>
+        <button class="zoom-btn" id="vl-zin">+</button>
+        <button class="zoom-btn" id="vl-zreset" style="font-size:9px;width:auto;padding:0 5px">Reset</button>
+      </div>
+      <div class="spd">Spd
+        <input type="range" id="vl-speed" min="80" max="1500" value="500" step="50"/>
+        <span id="vl-speed-val">500ms</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Log + Metrics -->
+  <div class="resize-handle" id="vl-resize-right"></div>
+  <div class="log-panel" id="vl-log-panel">
+    <h4>Step Log</h4>
+    <div class="log-list" id="vl-log-list"></div>
+  </div>
+  <div class="metrics-panel" id="vl-metrics-panel">
+    <h4>Metrics</h4>
+    <div id="vl-metrics-content"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════
+     PANEL 2 — DATASET REPLAY
+     ═══════════════════════════════════════════════════ -->
+<div class="panel" id="panel-replay">
+  <div class="sidebar" id="rp-sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-label">Structure</div>
+      <div class="ds-chips" id="rp-ds-chips">
+        <div class="ds-chip active" data-ds="avl">AVL</div>
+        <div class="ds-chip" data-ds="rbt">RBT</div>
+        <div class="ds-chip" data-ds="bheap">BHeap</div>
+        <div class="ds-chip" data-ds="binom">Binom</div>
+        <div class="ds-chip" data-ds="btree">B+Tree</div>
+        <div class="ds-chip" data-ds="tbt">TBT</div>
+        <div class="ds-chip" data-ds="trie">Trie</div>
+        <div class="ds-chip" data-ds="skip">Skip</div>
+      </div>
+    </div>
+    <div class="sidebar-section">
+      <div class="sidebar-label">Load Dataset</div>
+      <div class="drop-zone" id="rp-drop-zone">
+        <div class="drop-icon">📂</div>
+        <div class="drop-label">Drop dataset.txt</div>
+        <div class="drop-sub">or <label class="drop-link">browse<input type="file" id="rp-file-input" accept=".txt"/></label></div>
+      </div>
+    </div>
+    <div class="replay-meta" id="rp-meta" style="display:none">
+      <div>Ops: <b id="rp-meta-ops">—</b></div>
+      <div>Steps: <b id="rp-meta-steps">—</b></div>
+      <div>DS: <b id="rp-meta-ds">—</b></div>
+    </div>
+    <div class="sidebar-section" id="rp-jump-section" style="display:none">
+      <div class="sidebar-label">Jump to Operation</div>
+      <div class="op-jump-list" id="rp-jump-list"></div>
+    </div>
+    <div class="sidebar-section">
+      <div class="sidebar-label">Speed</div>
+      <div class="spd" style="gap:6px">
+        <input type="range" id="rp-speed" min="80" max="1500" value="400" step="50" style="flex:1"/>
+        <span id="rp-speed-val">400ms</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="canvas-area">
+    <div class="svg-wrap" id="rp-svg-wrap">
+      <svg id="rp-svg" xmlns="http://www.w3.org/2000/svg" width="800" height="500"></svg>
+    </div>
+    <!-- Timeline -->
+    <div class="timeline-wrap">
+      <div class="timeline-track" id="rp-tl-track">
+        <input type="range" class="timeline-slider" id="rp-slider" min="0" max="0" value="0"/>
+      </div>
+      <div class="timeline-info">
+        <span id="rp-tl-op">Load a dataset to begin</span>
+        <span id="rp-tl-pos">0 / 0</span>
+      </div>
+    </div>
+    <!-- Transport -->
+    <div class="stepper">
+      <button id="rp-first">⏮</button>
+      <button id="rp-prev">⏪</button>
+      <button id="rp-play">▶</button>
+      <button id="rp-next">⏩</button>
+      <button id="rp-last">⏭</button>
+      <span id="rp-step-label" style="flex:1;text-align:center;font-size:11px;color:var(--muted)">—</span>
+    </div>
+  </div>
+
+  <div class="log-panel">
+    <h4>Step Log</h4>
+    <div class="log-list" id="rp-log-list"></div>
+  </div>
+  <div class="metrics-panel">
+    <h4>Metrics</h4>
+    <div id="rp-metrics-content"></div>
+    <!-- Summary shown after replay completes -->
+    <div id="rp-summary" style="display:none;flex-direction:column;gap:0">
+      <div style="padding:8px 12px;font-size:10px;text-transform:uppercase;letter-spacing:.1em;
+                  color:var(--muted);border-top:1px solid var(--border);font-weight:600;margin-top:4px">
+        Replay Summary
+      </div>
+      <div id="rp-summary-body" style="overflow-y:auto;flex:1"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════
+     PANEL 3 — COMPARE  (any 2–4 structures, user-selectable)
+     ═══════════════════════════════════════════════════ -->
+<div class="panel" id="panel-compare">
+  <!-- Top control bar -->
+  <div class="cmp-top">
+    <!-- Slot selectors — rendered by JS -->
+    <div id="cmp-slot-selectors" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"></div>
+
+    <div style="width:1px;height:24px;background:var(--border);margin:0 4px"></div>
+
+    <label style="font-size:11px;color:var(--muted)">Op:</label>
+    <select id="cmp-op-select" style="width:130px">
+      <option value="Insert">Insert</option>
+      <option value="Delete">Delete</option>
+      <option value="Search">Search</option>
+      <option value="Find Min">Find Min</option>
+      <option value="Find Max">Find Max</option>
+      <option value="Extract Min">Extract Min</option>
+      <option value="Inorder">Inorder</option>
+    </select>
+    <input type="number" id="cmp-val" placeholder="Value" style="width:80px"/>
+    <button class="btn" id="cmp-run">▶ Run All</button>
+    <button class="btn sec" id="cmp-clear">Clear</button>
+    <button class="btn sec" id="cmp-all-btn" style="margin-left:8px">⚡ All DS</button>
+
+    <div style="margin-left:auto;display:flex;align-items:center;gap:6px">
+      <button id="cmp-prev"  style="padding:4px 10px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--text);cursor:pointer;font-size:12px">⏪</button>
+      <button id="cmp-play"  style="padding:4px 10px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--text);cursor:pointer;font-size:12px">▶</button>
+      <button id="cmp-next"  style="padding:4px 10px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--text);cursor:pointer;font-size:12px">⏩</button>
+      <span id="cmp-step-label" style="font-size:11px;color:var(--muted);min-width:80px">—</span>
+      <div class="spd">Spd
+        <input type="range" id="cmp-speed" min="80" max="1500" value="500" step="50" style="width:70px"/>
+      </div>
+    </div>
+  </div>
+
+  <!-- Dynamic canvas grid — built by JS -->
+  <div class="cmp-canvases" id="cmp-canvases"></div>
+
+  <!-- Compare All DS section -->
+  <div id="cmp-all-section" style="display:none;flex-direction:column;gap:0;overflow-y:auto;flex:1">
+    <!-- Control bar -->
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 14px;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0">
+      <span style="font-size:13px;font-weight:700;color:var(--text)">⚡ Compare All DS</span>
+      <div style="width:1px;height:18px;background:var(--border)"></div>
+      <!-- Mode tabs -->
+      <div style="display:flex;gap:4px">
+        <button class="cmp-mode-btn active" data-mode="numeric" style="padding:4px 10px;border-radius:6px;border:1px solid var(--border);background:rgba(99,102,241,.2);color:#fff;font-size:11px;cursor:pointer">🔢 Numeric</button>
+        <button class="cmp-mode-btn" data-mode="string" style="padding:4px 10px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--muted);font-size:11px;cursor:pointer">🔤 String</button>
+        <button class="cmp-mode-btn" data-mode="spatial" style="padding:4px 10px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--muted);font-size:11px;cursor:pointer">📐 Spatial</button>
+      </div>
+      <div style="width:1px;height:18px;background:var(--border)"></div>
+      <!-- Operations -->
+      <span style="font-size:10px;color:var(--muted)">Ops:</span>
+      <label style="font-size:11px;color:var(--text);display:flex;align-items:center;gap:3px"><input type="checkbox" id="op-insert" checked style="accent-color:var(--cur)"> Insert</label>
+      <label style="font-size:11px;color:var(--text);display:flex;align-items:center;gap:3px"><input type="checkbox" id="op-search" checked style="accent-color:var(--cur)"> Search</label>
+      <label style="font-size:11px;color:var(--text);display:flex;align-items:center;gap:3px" id="op-delete-lbl"><input type="checkbox" id="op-delete" style="accent-color:var(--cur)"> Delete</label>
+      <div style="width:1px;height:18px;background:var(--border)"></div>
+      <label style="font-size:11px;color:var(--muted)">n =</label>
+      <input type="number" id="cmp-all-n" value="30" min="5" max="300" style="width:60px"/>
+      <button class="btn" id="cmp-all-run" style="padding:5px 14px">▶ Run</button>
+      <span id="cmp-all-status" style="font-size:10px;color:var(--muted)"></span>
+      <button class="btn sec" id="cmp-all-close" style="margin-left:auto;padding:5px 10px">✕</button>
+    </div>
+    <!-- Charts: 4 in a row -->
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:12px;flex-shrink:0">
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px">
+        <div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">Insert Time (ms)</div>
+        <div style="position:relative;height:160px"><canvas id="cmp-all-ins-time"></canvas></div>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px">
+        <div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">Search Time (ms)</div>
+        <div style="position:relative;height:160px"><canvas id="cmp-all-srch-time"></canvas></div>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px">
+        <div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">Comparisons</div>
+        <div style="position:relative;height:160px"><canvas id="cmp-all-cmp"></canvas></div>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px">
+        <div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">Total Steps</div>
+        <div style="position:relative;height:160px"><canvas id="cmp-all-steps"></canvas></div>
+      </div>
+    </div>
+    <!-- Tabs: Results | Complexity | Use Cases | Insights -->
+    <div style="display:flex;gap:0;border-bottom:1px solid var(--border);padding:0 14px;flex-shrink:0">
+      <button class="cmp-tab-btn active" data-tab="results"    style="padding:7px 14px;border:none;background:transparent;color:#fff;font-size:11px;cursor:pointer;border-bottom:2px solid var(--cur)">📊 Results</button>
+      <button class="cmp-tab-btn" data-tab="complexity" style="padding:7px 14px;border:none;background:transparent;color:var(--muted);font-size:11px;cursor:pointer;border-bottom:2px solid transparent">📐 Complexity</button>
+      <button class="cmp-tab-btn" data-tab="usecases"   style="padding:7px 14px;border:none;background:transparent;color:var(--muted);font-size:11px;cursor:pointer;border-bottom:2px solid transparent">🌍 Use Cases</button>
+      <button class="cmp-tab-btn" data-tab="insights"   style="padding:7px 14px;border:none;background:transparent;color:var(--muted);font-size:11px;cursor:pointer;border-bottom:2px solid transparent">💡 Insights</button>
+    </div>
+    <!-- Tab content -->
+    <div style="flex:1;overflow-y:auto;padding:12px 14px">
+      <!-- Results tab -->
+      <div id="cmp-tab-results" class="cmp-tab-content">
+        <div style="overflow-x:auto">
+          <table style="width:100%;border-collapse:collapse;font-size:11px">
+            <thead><tr style="background:var(--surface2)">
+              <th style="text-align:left;padding:7px 10px;color:var(--muted);font-weight:600;border-bottom:1px solid var(--border)">DS</th>
+              <th style="padding:7px 10px;color:var(--muted);font-weight:600;border-bottom:1px solid var(--border);text-align:right">Ins Time</th>
+              <th style="padding:7px 10px;color:var(--muted);font-weight:600;border-bottom:1px solid var(--border);text-align:right">Srch Time</th>
+              <th style="padding:7px 10px;color:var(--muted);font-weight:600;border-bottom:1px solid var(--border);text-align:right">Del Time</th>
+              <th style="padding:7px 10px;color:var(--muted);font-weight:600;border-bottom:1px solid var(--border);text-align:right">Comparisons</th>
+              <th style="padding:7px 10px;color:var(--muted);font-weight:600;border-bottom:1px solid var(--border);text-align:right">Rotations</th>
+              <th style="padding:7px 10px;color:var(--muted);font-weight:600;border-bottom:1px solid var(--border);text-align:right">Steps</th>
+              <th style="padding:7px 10px;color:var(--muted);font-weight:600;border-bottom:1px solid var(--border);text-align:right">Size</th>
+              <th style="padding:7px 10px;color:var(--muted);font-weight:600;border-bottom:1px solid var(--border);text-align:right">Space ≈</th>
+              <th style="padding:7px 10px;color:var(--muted);font-weight:600;border-bottom:1px solid var(--border);text-align:center">Type</th>
+            </tr></thead>
+            <tbody id="cmp-all-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+      <!-- Complexity tab -->
+      <div id="cmp-tab-complexity" class="cmp-tab-content" style="display:none">
+        <table style="width:100%;border-collapse:collapse;font-size:11px">
+          <thead><tr style="background:var(--surface2)">
+            <th style="text-align:left;padding:7px 10px;color:var(--muted);font-weight:600;border-bottom:1px solid var(--border)">DS</th>
+            <th style="padding:7px 10px;color:var(--muted);font-weight:600;border-bottom:1px solid var(--border);text-align:center">Insert</th>
+            <th style="padding:7px 10px;color:var(--muted);font-weight:600;border-bottom:1px solid var(--border);text-align:center">Search</th>
+            <th style="padding:7px 10px;color:var(--muted);font-weight:600;border-bottom:1px solid var(--border);text-align:center">Delete</th>
+            <th style="padding:7px 10px;color:var(--muted);font-weight:600;border-bottom:1px solid var(--border);text-align:center">Space</th>
+            <th style="padding:7px 10px;color:var(--muted);font-weight:600;border-bottom:1px solid var(--border);text-align:center">Notes</th>
+          </tr></thead>
+          <tbody id="cmp-complexity-tbody"></tbody>
+        </table>
+      </div>
+      <!-- Use Cases tab -->
+      <div id="cmp-tab-usecases" class="cmp-tab-content" style="display:none">
+        <div id="cmp-usecases-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px"></div>
+      </div>
+      <!-- Insights tab -->
+      <div id="cmp-tab-insights" class="cmp-tab-content" style="display:none">
+        <div id="cmp-insights-list" style="display:flex;flex-direction:column;gap:8px"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════
+     PANEL 4 — SCENARIOS
+     ═══════════════════════════════════════════════════ -->
+<div class="panel" id="panel-scenarios" style="flex-direction:column">
+  <div style="padding:16px 20px;background:var(--surface);border-bottom:1px solid var(--border);
+              display:flex;align-items:center;gap:12px;flex-shrink:0;flex-wrap:wrap">
+    <span style="font-size:13px;font-weight:600;color:var(--text)">Scenario Generator</span>
+    <div class="scenario-grid" id="sc-type-grid" style="display:flex;gap:6px">
+      <button class="scenario-btn active" data-sc="random">🎲 Random</button>
+      <button class="scenario-btn" data-sc="sorted">📈 Sorted</button>
+      <button class="scenario-btn" data-sc="reverse">📉 Reverse</button>
+      <button class="scenario-btn" data-sc="skewed">⚡ Skewed</button>
+    </div>
+    <label style="font-size:11px;color:var(--muted)">n =
+      <input type="number" id="sc-n" value="20" min="5" max="100"
+             style="width:60px;margin-left:4px"/>
+    </label>
+    <div class="ds-chips" id="sc-ds-chips">
+      <div class="ds-chip active" data-ds="avl">AVL</div>
+      <div class="ds-chip" data-ds="rbt">RBT</div>
+      <div class="ds-chip" data-ds="bheap">BHeap</div>
+      <div class="ds-chip" data-ds="binom">Binom</div>
+      <div class="ds-chip" data-ds="btree">B+Tree</div>
+    </div>
+    <button class="btn" id="sc-run">▶ Generate &amp; Run</button>
+    <button class="btn sec" id="sc-download">⬇ Download .txt</button>
+  </div>
+  <div style="display:flex;flex:1;overflow:hidden">
+    <div class="canvas-area">
+      <div class="svg-wrap" id="sc-svg-wrap">
+        <svg id="sc-svg" xmlns="http://www.w3.org/2000/svg" width="800" height="500"></svg>
+      </div>
+      <div class="timeline-wrap">
+        <div class="timeline-track" id="sc-tl-track">
+          <input type="range" class="timeline-slider" id="sc-slider" min="0" max="0" value="0"/>
+        </div>
+        <div class="timeline-info">
+          <span id="sc-tl-op">Generate a scenario to begin</span>
+          <span id="sc-tl-pos">0 / 0</span>
+        </div>
+      </div>
+      <div class="stepper">
+        <button id="sc-prev">⏮</button>
+        <button id="sc-play">▶</button>
+        <button id="sc-next">⏭</button>
+        <span id="sc-step-label" style="flex:1;text-align:center;font-size:11px;color:var(--muted)">—</span>
+        <div class="spd">Spd
+          <input type="range" id="sc-speed" min="80" max="1500" value="400" step="50" style="width:70px"/>
+          <span id="sc-speed-val">400ms</span>
+        </div>
+      </div>
+    </div>
+    <div class="log-panel">
+      <h4>Step Log</h4>
+      <div class="log-list" id="sc-log-list"></div>
+    </div>
+    <div class="metrics-panel">
+      <h4>Metrics</h4>
+      <div id="sc-metrics-content"></div>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+<script>
+// ═══════════════════════════════════════════════════
+// BOOTSTRAP — load existing DS classes + renderer from visualizer.html
+// We inline the DS classes and renderer here so platform.html is self-contained.
+// ═══════════════════════════════════════════════════
+</script>
+<script src="ds-classes.js"></script>
+<script src="renderer.js"></script>
+<script src="platform-ctrl.js"></script>
+</body>
+</html>
+

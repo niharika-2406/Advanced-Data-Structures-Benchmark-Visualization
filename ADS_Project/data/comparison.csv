@@ -1,0 +1,6 @@
+DataStructure,InsertOps,InsertNsPerOp,SearchOps,SearchNsPerOp,DeleteOps,DeleteNsPerOp,TotalTimeMs
+AVL Tree,1000,157.25,618,47.59,368,131.97,0.3251
+Red-Black Tree,1000,121.13,618,54.40,368,99.93,0.2706
+Binary Heap,1000,45.36,618,33.93,368,76.09,0.1691
+Binomial Heap,1000,62.98,618,412.97,368,215.00,0.4685
+B+ Tree (T=3),1000,193.96,618,66.26,368,106.01,0.3458
